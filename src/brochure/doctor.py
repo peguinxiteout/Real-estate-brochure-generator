@@ -118,3 +118,20 @@ def check_fonts(fonts_dir: Path | None = None) -> Check:
             "otherwise copy the OFL font files (Playfair Display, Inter) into assets\\fonts\\",
         ),
     )
+
+
+def run_checks() -> list[Check]:
+    return [check_python(), check_weasyprint(), check_ghostscript(), check_fonts()]
+
+
+def format_report(checks: list[Check]) -> str:
+    name_width = max(len(c.name) for c in checks)
+    lines = ["brochure doctor", ""]
+    for c in checks:
+        tag = "[OK]" if c.ok else "[FAIL]"
+        lines.append(f"{tag:<7}{c.name:<{name_width}}  {c.detail}")
+        lines.extend(f"{'':<7}{'':<{name_width}}  fix: {fix}" for fix in c.fixes)
+    failed = sum(not c.ok for c in checks)
+    lines.append("")
+    lines.append(f"{failed} of {len(checks)} checks failed." if failed else f"All {len(checks)} checks passed.")
+    return "\n".join(lines)
