@@ -1,6 +1,7 @@
 """Environment checks behind `brochure doctor`."""
 from __future__ import annotations
 
+import importlib
 import os
 import re
 import shutil
@@ -66,6 +67,42 @@ def check_python(version: tuple[int, int, int] | None = None) -> Check:
         return Check("Python", True, shown)
     needed = ".".join(str(n) for n in MIN_PYTHON)
     return Check("Python", False, f"{shown} (need {needed} or newer)", ("winget install Python.Python.3.12",))
+
+
+PIP_FIX = "python -m pip install weasyprint"
+MSYS2_FIXES = (
+    "winget install MSYS2.MSYS2",
+    'C:\\msys64\\usr\\bin\\bash.exe -lc "pacman -S --noconfirm mingw-w64-x86_64-pango"',
+    "setx WEASYPRINT_DLL_DIRECTORIES C:\\msys64\\mingw64\\bin    (then open a new terminal)",
+)
+GS_DOWNLOAD_FIX = "download the 64-bit installer from https://ghostscript.com/releases/gsdnld.html"
+
+
+def _last_line(exc: BaseException) -> str:
+    lines = [line.strip() for line in str(exc).splitlines() if line.strip()]
+    return lines[-1] if lines else type(exc).__name__
+
+
+def check_weasyprint(importer=importlib.import_module) -> Check:
+    try:
+        module = importer("weasyprint")
+    except ModuleNotFoundError as exc:
+        return Check("WeasyPrint", False, f"not installed ({_last_line(exc)})", (PIP_FIX,))
+    except Exception as exc:  # OSError / ImportError when the Pango libraries cannot be loaded
+        return Check("WeasyPrint", False, _last_line(exc), MSYS2_FIXES)
+    return Check("WeasyPrint", True, f"version {getattr(module, '__version__', 'unknown')}")
+
+
+def check_ghostscript(lookup: GsLookup | None = None) -> Check:
+    lookup = find_ghostscript() if lookup is None else lookup
+    if lookup.path is not None:
+        return Check("Ghostscript", True, f"{lookup.path} (via {lookup.source})")
+    detail = "not found (looked at GS_BIN, PATH, C:\\Program Files\\gs)"
+    fixes = [GS_DOWNLOAD_FIX]
+    if lookup.note:
+        detail = f"{lookup.note}; {detail}"
+        fixes.append('setx GS_BIN "<full path to gswin64c.exe>"')
+    return Check("Ghostscript", False, detail, tuple(fixes))
 
 
 def check_fonts(fonts_dir: Path | None = None) -> Check:
