@@ -15,6 +15,14 @@ GS_PATH_NAMES = ("gswin64c", "gswin32c", "gs")
 # <repo>/src/brochure/doctor.py -> <repo>/assets/fonts (valid for the editable install used in development)
 DEFAULT_FONTS_DIR = Path(__file__).resolve().parents[2] / "assets" / "fonts"
 
+PIP_FIX = "python -m pip install weasyprint"
+MSYS2_FIXES = (
+    "winget install MSYS2.MSYS2",
+    'C:\\msys64\\usr\\bin\\bash.exe -lc "pacman -S --noconfirm mingw-w64-x86_64-pango"',
+    "setx WEASYPRINT_DLL_DIRECTORIES C:\\msys64\\mingw64\\bin    (then open a new terminal)",
+)
+GS_DOWNLOAD_FIX = "download the 64-bit installer from https://ghostscript.com/releases/gsdnld.html"
+
 
 @dataclass(frozen=True)
 class Check:
@@ -67,15 +75,6 @@ def check_python(version: tuple[int, int, int] | None = None) -> Check:
         return Check("Python", True, shown)
     needed = ".".join(str(n) for n in MIN_PYTHON)
     return Check("Python", False, f"{shown} (need {needed} or newer)", ("winget install Python.Python.3.12",))
-
-
-PIP_FIX = "python -m pip install weasyprint"
-MSYS2_FIXES = (
-    "winget install MSYS2.MSYS2",
-    'C:\\msys64\\usr\\bin\\bash.exe -lc "pacman -S --noconfirm mingw-w64-x86_64-pango"',
-    "setx WEASYPRINT_DLL_DIRECTORIES C:\\msys64\\mingw64\\bin    (then open a new terminal)",
-)
-GS_DOWNLOAD_FIX = "download the 64-bit installer from https://ghostscript.com/releases/gsdnld.html"
 
 
 def _last_line(exc: BaseException) -> str:
