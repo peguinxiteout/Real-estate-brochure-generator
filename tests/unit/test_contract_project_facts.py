@@ -67,3 +67,17 @@ def test_an_empty_brief_form_is_valid():
 def test_brief_form_rejects_unknown_fields():
     with pytest.raises(ValidationError, match="Extra inputs"):
         BriefForm.model_validate({"nmae": "typo"})
+
+
+def test_a_complete_brief_form_converts_to_project_facts_unchanged():
+    form = BriefForm.model_validate(facts_data())
+    assert ProjectFacts.model_validate(form.model_dump()) == ProjectFacts.model_validate(facts_data())
+
+
+def test_a_form_without_rera_number_is_valid_but_cannot_become_project_facts():
+    data = facts_data()
+    del data["rera_number"]
+    form = BriefForm.model_validate(data)
+    assert form.rera_number is None
+    with pytest.raises(ValidationError, match="rera_number"):
+        ProjectFacts.model_validate(form.model_dump())
