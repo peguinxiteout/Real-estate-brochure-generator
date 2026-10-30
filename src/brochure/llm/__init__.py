@@ -1,4 +1,4 @@
 from brochure.llm.base import LLMClient
-from brochure.llm.fake import FakeLLM
+from brochure.llm.fake import FakeLLM, LLMCall
 
-__all__ = ["FakeLLM", "LLMClient"]
+__all__ = ["FakeLLM", "LLMCall", "LLMClient"]
