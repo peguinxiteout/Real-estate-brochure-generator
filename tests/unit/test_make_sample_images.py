@@ -1,4 +1,6 @@
 import importlib.util
+import subprocess
+import sys
 import json
 from pathlib import Path
 
@@ -52,3 +54,12 @@ def test_output_is_deterministic(tool, manifest, tmp_path):
     first = tool.generate_images(manifest, tmp_path / "a")
     second = tool.generate_images(manifest, tmp_path / "b")
     assert [p.read_bytes() for p in first] == [p.read_bytes() for p in second]
+
+
+def test_script_writes_to_the_folder_given_on_the_command_line(tmp_path):
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "make_sample_images.py"), "--out", str(tmp_path)],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert len(list(tmp_path.glob("*.jpg"))) == 12
