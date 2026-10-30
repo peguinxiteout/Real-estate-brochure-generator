@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from brochure.contracts.brand import BrandKit
+from brochure.contracts.images import ImageTag
 from brochure.contracts.manifest import ImageManifest
 from brochure.contracts.project import Brief
 from brochure.dpi import classify_dpi, effective_dpi
@@ -64,3 +65,17 @@ def test_exactly_three_images_fail_the_dpi_rule_and_one_warns(manifest, template
         "amenity_gym.jpg", "developer_office.jpg", "floorplan_3bhk.jpg",
     ]
     assert [n for n, s in status.items() if s == "warn"] == ["amenity_clubhouse.jpg"]
+
+
+@pytest.fixture(scope="module")
+def image_tags():
+    return [ImageTag.model_validate(t) for t in read_json(ROOT / "tests" / "fixtures" / "image_tags.json")]
+
+
+def test_image_tag_fixture_matches_the_manifest_size_kind_and_filename(manifest, image_tags):
+    by_path = {t.path: t for t in image_tags}
+    assert len(image_tags) == 12
+    assert set(by_path) == {e.filename for e in manifest.images}
+    for e in manifest.images:
+        tag = by_path[e.filename]
+        assert (tag.width_px, tag.height_px, tag.kind) == (e.width_px, e.height_px, e.kind), e.filename
