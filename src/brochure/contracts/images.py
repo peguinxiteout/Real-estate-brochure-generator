@@ -1,0 +1,22 @@
+"""Image tags: what the vision step (or a fixture) says about one image."""
+from typing import Literal
+
+from brochure.contracts.base import ContractModel
+
+
+class FocalPoint(ContractModel):
+    """Where the subject sits in the image, as fractions of width (x) and height (y)."""
+
+    x: float
+    y: float
+
+
+class ImageTag(ContractModel):
+    path: str
+    kind: Literal["photo", "render", "floor_plan", "map"]
+    subject: str
+    width_px: int
+    height_px: int
+    quality: Literal["good", "fair", "poor"]
+    features: list[str] = []
+    focal_point: FocalPoint
