@@ -85,3 +85,12 @@ def test_an_issue_routed_to_none_does_not_loop_and_is_kept_as_a_warning_on_the_s
     assert (calls["copywriter"], calls["layout"], calls["renderer"], calls["qa"]) == (1, 1, 1, 1)
     assert run.state.qa_round == 1
     assert [i.note for i in run.state.spec.qa_warnings] == ["cosmetic"]
+
+
+def test_after_3_qa_rounds_the_run_moves_on_and_the_remaining_issues_become_spec_warnings():
+    always = [[qa_issue("copywriter", f"round {n}")] for n in range(1, 6)]
+    run, calls = run_with_qa(always)
+    assert run.paused_at == ("human_review",)
+    assert (calls["copywriter"], calls["layout"], calls["renderer"], calls["qa"]) == (3, 3, 3, 3)
+    assert run.state.qa_round == 3
+    assert [i.note for i in run.state.spec.qa_warnings] == ["round 3"]

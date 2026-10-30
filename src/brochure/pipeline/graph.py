@@ -10,8 +10,16 @@ from brochure.contracts.state import PipelineState
 from brochure.pipeline.agents import Agents
 
 
+MAX_QA_ROUNDS = 3
+
+
 def qa_next(issues: list[QAIssue], qa_round: int) -> Literal["copywriter", "layout", "human_review"]:
-    """Where the run goes after a QA pass: the earliest step an issue is routed to, otherwise on to review."""
+    """Where the run goes after a QA pass: the earliest step an issue is routed to, otherwise on to review.
+
+    After MAX_QA_ROUNDS passes the run moves on to review whatever the issues say.
+    """
+    if qa_round >= MAX_QA_ROUNDS:
+        return "human_review"
     routes = {issue.route_to for issue in issues}
     if "copywriter" in routes:
         return "copywriter"
