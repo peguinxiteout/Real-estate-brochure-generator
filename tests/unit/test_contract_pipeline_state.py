@@ -47,3 +47,13 @@ def test_the_brief_agent_fills_project_facts_and_lists_what_it_still_needs_to_as
     state = PipelineState.model_validate(state_data(project_facts=facts, missing_fields=["rera_number"]))
     assert state.project_facts.name == "Aurelia Heights"
     assert state.missing_fields == ["rera_number"]
+
+
+def test_render_outputs_start_empty_and_hold_a_pdf_and_one_png_per_page():
+    fresh = PipelineState.model_validate(state_data())
+    assert fresh.pdf_path is None
+    assert fresh.page_images == []
+    pages = [f"out/page-{n}.png" for n in range(1, 9)]
+    rendered = PipelineState.model_validate(state_data(pdf_path="out/aurelia.pdf", page_images=pages))
+    assert rendered.pdf_path == "out/aurelia.pdf"
+    assert rendered.page_images == pages

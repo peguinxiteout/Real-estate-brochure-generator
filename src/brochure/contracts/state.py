@@ -23,6 +23,9 @@ class PipelineState(ContractModel):
     image_tags: list[ImageTag] = []
     slot_copy: dict[str, str] = {}
     spec: BrochureSpec | None = None
+    # set by the renderer, read by the QA critic
+    pdf_path: str | None = None
+    page_images: list[str] = []  # one PNG path per page, in page order
     # review loop
     qa_issues: list[QAIssue] = []
     qa_round: int = Field(default=0, ge=0)
