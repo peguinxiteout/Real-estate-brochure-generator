@@ -7,7 +7,7 @@ from PIL import Image
 from brochure.contracts.brand import BrandKit
 from brochure.contracts.images import ImageTag
 from brochure.contracts.manifest import ImageManifest
-from brochure.contracts.project import Brief, ProjectFacts
+from brochure.contracts.project import Brief
 from brochure.contracts.state import PipelineState
 from brochure.slots import load_slots
 from tests.unit.test_make_sample_images import load_tool
@@ -37,8 +37,7 @@ def test_whole_sample_project_validates_and_a_pipeline_state_can_be_built_from_i
     state = PipelineState(
         template_id=template.template_id,
         brand_kit=kit,
-        project_facts=ProjectFacts.model_validate(brief.form.model_dump()),
-        brief_prompt=brief.prompt,
+        brief=brief,
         image_dir=str(images),
         image_tags=tags,
     )

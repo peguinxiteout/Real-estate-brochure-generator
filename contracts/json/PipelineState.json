@@ -112,6 +112,130 @@
       "title": "BrandKit",
       "type": "object"
     },
+    "Brief": {
+      "additionalProperties": false,
+      "description": "The user's starting point: the form they filled in plus a free-text prompt.",
+      "properties": {
+        "form": {
+          "$ref": "#/$defs/BriefForm"
+        },
+        "prompt": {
+          "title": "Prompt",
+          "type": "string"
+        }
+      },
+      "required": [
+        "form",
+        "prompt"
+      ],
+      "title": "Brief",
+      "type": "object"
+    },
+    "BriefForm": {
+      "additionalProperties": false,
+      "description": "What the user filled in on the form: ProjectFacts with every field optional.",
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "rera_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rera Number"
+        },
+        "rera_state": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rera State"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Location"
+        },
+        "configurations": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Configuration"
+          },
+          "title": "Configurations",
+          "type": "array"
+        },
+        "amenities": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Amenities",
+          "type": "array"
+        },
+        "specifications": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Specification"
+          },
+          "title": "Specifications",
+          "type": "array"
+        },
+        "landmarks": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Landmark"
+          },
+          "title": "Landmarks",
+          "type": "array"
+        },
+        "possession": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Possession"
+        },
+        "tone_notes": {
+          "default": "",
+          "title": "Tone Notes",
+          "type": "string"
+        }
+      },
+      "title": "BriefForm",
+      "type": "object"
+    },
     "BrochureSpec": {
       "additionalProperties": false,
       "properties": {
@@ -519,17 +643,31 @@
     "brand_kit": {
       "$ref": "#/$defs/BrandKit"
     },
-    "project_facts": {
-      "$ref": "#/$defs/ProjectFacts"
-    },
-    "brief_prompt": {
-      "default": "",
-      "title": "Brief Prompt",
-      "type": "string"
+    "brief": {
+      "$ref": "#/$defs/Brief"
     },
     "image_dir": {
       "title": "Image Dir",
       "type": "string"
+    },
+    "project_facts": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ProjectFacts"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "missing_fields": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Missing Fields",
+      "type": "array"
     },
     "image_tags": {
       "default": [],
@@ -586,7 +724,7 @@
   "required": [
     "template_id",
     "brand_kit",
-    "project_facts",
+    "brief",
     "image_dir"
   ],
   "title": "PipelineState",
