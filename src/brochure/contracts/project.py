@@ -1,14 +1,14 @@
 """Project facts: what the developer tells us about the project."""
 from typing import Annotated
 
-from pydantic import StringConstraints
+from pydantic import Field, StringConstraints
 
 from brochure.contracts.base import ContractModel
 
 
 class Configuration(ContractModel):
     label: str
-    carpet_area_sqft: float
+    carpet_area_sqft: float = Field(gt=0)
 
 
 class Specification(ContractModel):

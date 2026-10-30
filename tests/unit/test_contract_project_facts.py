@@ -36,3 +36,10 @@ def test_valid_project_facts_parse():
 def test_blank_rera_number_is_rejected(blank):
     with pytest.raises(ValidationError):
         ProjectFacts.model_validate(facts_data(rera_number=blank))
+
+
+@pytest.mark.parametrize("area", [0, -10])
+def test_configuration_carpet_area_must_be_positive(area):
+    bad = [{"label": "2 BHK", "carpet_area_sqft": area}]
+    with pytest.raises(ValidationError):
+        ProjectFacts.model_validate(facts_data(configurations=bad))
