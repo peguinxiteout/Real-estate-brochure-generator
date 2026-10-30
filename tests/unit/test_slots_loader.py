@@ -44,3 +44,9 @@ def test_bleed_comes_from_the_print_config_not_a_constant(tmp_path):
     thick = PrintConfig(bleed_mm=5, target_dpi=300)
     hero = load_slots(write_slots(tmp_path, FULL_PAGE), thick).get("hero")
     assert hero.min_px == (2599, 3626)  # 220 x 307 mm
+
+
+def test_target_dpi_comes_from_the_print_config(tmp_path):
+    draft = PrintConfig(bleed_mm=3, target_dpi=150)
+    hero = load_slots(write_slots(tmp_path, FULL_PAGE), draft).get("hero")
+    assert hero.min_px == (1276, 1790)  # 216 x 303 mm at 150 DPI
