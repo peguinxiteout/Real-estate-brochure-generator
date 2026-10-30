@@ -5,3 +5,8 @@ __pycache__/
 *.egg-info/
 out/
 sample/images/
+
+# Local-only notes
+CLAUDE.md
+PLAN.md
+.claude/
