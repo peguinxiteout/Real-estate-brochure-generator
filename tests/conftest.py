@@ -22,3 +22,13 @@ def ghostscript_exe():
     if lookup.path is None:
         pytest.skip("Ghostscript not found (looked at GS_BIN, PATH, C:\\Program Files\\gs). Run `brochure doctor` for the fix.")
     return lookup.path
+
+
+@pytest.fixture
+def windows(monkeypatch):
+    monkeypatch.setattr("sys.platform", "win32")
+
+
+@pytest.fixture
+def linux(monkeypatch):
+    monkeypatch.setattr("sys.platform", "linux")
