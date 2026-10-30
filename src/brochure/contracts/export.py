@@ -28,3 +28,14 @@ def schema_files() -> dict[str, str]:
         f"{model.__name__}.json": json.dumps(model.model_json_schema(), indent=2) + "\n"
         for model in EXPORTED_MODELS
     }
+
+
+def write_schemas(out_dir: Path) -> list[Path]:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    written = []
+    for name, text in schema_files().items():
+        path = out_dir / name
+        path.write_text(text, encoding="utf-8", newline="
+")
+        written.append(path)
+    return written
