@@ -26,6 +26,8 @@ def sample_state(*, briefed: bool = True, **form_changes) -> PipelineState:
 class Run:
     """One pipeline run: a graph, its thread config, and a FakeLLM that must never be called."""
 
+    created: list["Run"] = []  # every Run made, so a test fixture can check them all
+
     def __init__(self, agents=None, checkpointer=None, thread_id="run-1"):
         from brochure.llm import FakeLLM
         from brochure.pipeline import build_graph, memory_checkpointer, stub_agents
@@ -33,6 +35,7 @@ class Run:
         self.llm = FakeLLM({})
         self.graph = build_graph(agents or stub_agents(), checkpointer or memory_checkpointer(), self.llm)
         self.config = {"configurable": {"thread_id": thread_id}}
+        Run.created.append(self)
 
     def start(self, state=None):
         return self.graph.invoke(state or sample_state(briefed=False), self.config)

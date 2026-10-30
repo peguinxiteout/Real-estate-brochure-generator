@@ -1,9 +1,26 @@
 """The pipeline graph on stub agents: the whole flow runs with no LLM and no rendering."""
+import socket
 from dataclasses import replace
+
+import pytest
 
 
 from brochure.pipeline import ScriptedQA, load_sample_data, sqlite_checkpointer, stub_agents
 from tests.support import Run, counted, qa_issue, sample_state
+
+
+@pytest.fixture(autouse=True)
+def pipeline_guards(monkeypatch):
+    """Every test here: no network, and the FakeLLM of every Run must end with zero calls (the stubs never call a model)."""
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("a pipeline unit test tried to use the network")
+
+    monkeypatch.setattr(socket.socket, "connect", refuse)
+    monkeypatch.setattr(socket, "getaddrinfo", refuse)
+    Run.created.clear()
+    yield
+    assert [run.llm.calls for run in Run.created] == [[] for _ in Run.created]
 
 
 def test_a_full_run_pauses_at_review_with_an_8_page_spec_and_ends_after_approval():
@@ -180,3 +197,8 @@ def test_a_run_paused_at_review_resumes_from_sqlite_in_a_new_graph_and_connectio
     assert second.state.approval_status == "approved"
     second_saver.conn.close()
     assert first.llm.calls == [] and second.llm.calls == []
+
+
+def test_the_pipeline_tests_cannot_open_a_network_connection():
+    with pytest.raises(AssertionError, match="network"):
+        socket.create_connection(("127.0.0.1", 9))  # the discard port: nothing listens, nothing leaves this machine
