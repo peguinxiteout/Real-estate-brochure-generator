@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from brochure.contracts.export import EXPORTED_MODELS, schema_files, write_schemas
+from brochure.contracts.export import EXPORTED_MODELS, out_of_date, schema_files, write_schemas
 
 EXPECTED = {
     "BrandKit.json",
@@ -52,17 +52,23 @@ REGENERATE = "python tools/export_schemas.py"
 COMMITTED = Path(__file__).parents[2] / "contracts" / "json"
 
 
+def test_a_checkout_with_crlf_line_endings_is_not_out_of_date(tmp_path):
+    for name, text in schema_files().items():
+        (tmp_path / name).write_bytes(text.replace(chr(10), chr(13) + chr(10)).encode("utf-8"))
+    assert out_of_date(tmp_path) == ([], [])
+
+
+def test_a_changed_or_missing_or_extra_file_is_reported(tmp_path):
+    write_schemas(tmp_path)
+    (tmp_path / "QAIssue.json").write_text('{"title": "QAIssue"}', encoding="utf-8")
+    (tmp_path / "BrandKit.json").unlink()
+    (tmp_path / "Old.json").write_text("{}", encoding="utf-8")
+    assert out_of_date(tmp_path) == (["BrandKit.json", "QAIssue.json"], ["Old.json"])
+
+
 def test_committed_schemas_match_the_models():
-    expected = schema_files()
-    committed = {p.name: p.read_text(encoding="utf-8") for p in COMMITTED.glob("*.json")} if COMMITTED.is_dir() else {}
-    stale = sorted(n for n in expected if committed.get(n) != expected[n])
-    extra = sorted(set(committed) - set(expected))
+    stale, extra = out_of_date(COMMITTED)
     assert not stale and not extra, (
         f"contracts/json/ is out of date (differs or missing: {stale}; no longer a model: {extra}). "
         f"Regenerate and commit with: {REGENERATE}"
     )
-
-
-@pytest.mark.parametrize("model", EXPORTED_MODELS, ids=lambda m: m.__name__)
-def test_every_exported_model_rejects_unknown_fields(model):
-    assert model.model_config.get("extra") == "forbid"

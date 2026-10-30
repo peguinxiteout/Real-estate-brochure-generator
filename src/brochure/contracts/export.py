@@ -42,3 +42,12 @@ def write_schemas(out_dir: Path) -> list[Path]:
         path.write_text(text, encoding="utf-8", newline="\n")
         written.append(path)
     return written
+
+
+def out_of_date(directory: Path) -> tuple[list[str], list[str]]:
+    """(files that differ or are missing, files that no longer belong), comparing parsed JSON, not bytes."""
+    expected = {name: json.loads(text) for name, text in schema_files().items()}
+    found = {path.name: path for path in directory.glob("*.json")} if directory.is_dir() else {}
+    stale = sorted(name for name, schema in expected.items() if name not in found or json.loads(found[name].read_text(encoding="utf-8")) != schema)
+    extra = sorted(set(found) - set(expected))
+    return stale, extra
