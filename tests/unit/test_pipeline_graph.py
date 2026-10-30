@@ -1,8 +1,8 @@
 """The pipeline graph on stub agents: the whole flow runs with no LLM and no rendering."""
 from dataclasses import replace
 
-from brochure.pipeline import stub_agents
-from tests.support import Run, sample_state
+from brochure.pipeline import ScriptedQA, stub_agents
+from tests.support import Run, counted, qa_issue, sample_state
 
 
 def test_a_full_run_pauses_at_review_with_an_8_page_spec_and_ends_after_approval():
@@ -54,3 +54,19 @@ def test_a_missing_rera_number_pauses_the_run_and_resuming_with_it_continues():
     assert run.state.project_facts.rera_number == "P99999000001"
     assert run.state.brief.form.rera_number == "P99999000001"
     assert run.llm.calls == []
+
+
+def run_with_qa(script):
+    agents, counts = counted(stub_agents(qa=ScriptedQA(script)))
+    run = Run(agents)
+    run.start()
+    return run, counts
+
+
+def test_a_copywriter_issue_sends_the_run_back_through_copy_layout_render_and_qa():
+    run, calls = run_with_qa([[qa_issue("copywriter")]])
+    assert run.paused_at == ("human_review",)
+    assert (calls["copywriter"], calls["layout"], calls["renderer"], calls["qa"]) == (2, 2, 2, 2)
+    assert run.state.qa_round == 2
+    assert run.state.qa_issues == []
+    assert run.state.spec.qa_warnings == []

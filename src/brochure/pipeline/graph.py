@@ -45,6 +45,11 @@ def build_graph(agents: Agents, checkpointer, llm):
     def qa(state: PipelineState):
         return {"qa_issues": agents.qa(state, llm), "qa_round": state.qa_round + 1}
 
+    def after_qa(state: PipelineState) -> Literal["copywriter", "human_review"]:
+        if any(issue.route_to == "copywriter" for issue in state.qa_issues):
+            return "copywriter"
+        return "human_review"
+
     def human_review(state: PipelineState) -> Command[Literal["export"]]:
         interrupt({"ask": "review", "pdf_path": state.pdf_path, "page_images": state.page_images})
         return Command(goto="export", update={"approval_status": "approved"})
@@ -69,6 +74,6 @@ def build_graph(agents: Agents, checkpointer, llm):
     graph.add_edge("copywriter", "layout")
     graph.add_edge("layout", "renderer")
     graph.add_edge("renderer", "qa")
-    graph.add_edge("qa", "human_review")
+    graph.add_conditional_edges("qa", after_qa)
     graph.add_edge("export", END)
     return graph.compile(checkpointer=checkpointer)

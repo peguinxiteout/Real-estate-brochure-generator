@@ -49,3 +49,25 @@ class Run:
     @property
     def state(self) -> PipelineState:
         return PipelineState.model_validate(self.graph.get_state(self.config).values)
+
+
+def counted(agents):
+    """The same agents, each wrapped to count its calls. Returns (agents, counts) where counts maps step name -> calls."""
+    from dataclasses import fields, replace
+
+    counts = {f.name: 0 for f in fields(agents)}
+
+    def wrap(name, agent):
+        def counting(state, llm):
+            counts[name] += 1
+            return agent(state, llm)
+
+        return counting
+
+    return replace(agents, **{name: wrap(name, getattr(agents, name)) for name in counts}), counts
+
+
+def qa_issue(route_to, note="problem"):
+    from brochure.contracts.qa import QAIssue
+
+    return QAIssue(check="stub", page=1, severity="error", note=note, route_to=route_to)
