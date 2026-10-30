@@ -24,3 +24,8 @@ def test_valid_image_tag_parses_and_round_trips_through_json():
     assert tag.kind == "render"
     assert (tag.focal_point.x, tag.focal_point.y) == (0.5, 0.4)
     assert ImageTag.model_validate_json(tag.model_dump_json()) == tag
+
+
+def test_focal_point_outside_0_to_1_is_rejected():
+    with pytest.raises(ValidationError):
+        ImageTag.model_validate(tag_data(focal_point={"x": 1.2, "y": 0.5}))

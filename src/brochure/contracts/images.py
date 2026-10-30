@@ -1,14 +1,16 @@
 """Image tags: what the vision step (or a fixture) says about one image."""
 from typing import Literal
 
+from pydantic import Field
+
 from brochure.contracts.base import ContractModel
 
 
 class FocalPoint(ContractModel):
     """Where the subject sits in the image, as fractions of width (x) and height (y)."""
 
-    x: float
-    y: float
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
 
 
 class ImageTag(ContractModel):
