@@ -31,3 +31,18 @@ class Slot(ContractModel):
         if len(set(self.bleed_edges)) != len(self.bleed_edges):
             raise ValueError(f"slot {self.id!r} lists a bleed edge more than once")
         return self
+
+
+class SlotsFile(ContractModel):
+    template_id: str
+    name: str = ""
+    slots: list[Slot]
+
+    @model_validator(mode="after")
+    def _slot_ids_are_unique(self) -> "SlotsFile":
+        seen: set[str] = set()
+        for slot in self.slots:
+            if slot.id in seen:
+                raise ValueError(f"slot id {slot.id!r} appears more than once")
+            seen.add(slot.id)
+        return self

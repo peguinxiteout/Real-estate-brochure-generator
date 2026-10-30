@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from brochure.contracts.slots import Slot
+from brochure.contracts.slots import Slot, SlotsFile
 
 
 def slot_data(**overrides):
@@ -67,3 +67,15 @@ def test_width_mm_must_be_positive(width):
 def test_height_mm_must_be_positive(height):
     with pytest.raises(ValidationError, match="height_mm"):
         Slot.model_validate(slot_data(height_mm=height))
+
+
+def test_slots_file_parses_and_exposes_its_slots():
+    parsed = SlotsFile.model_validate(
+        {"template_id": "t", "name": "Test", "slots": [slot_data(), slot_data(id="logo", bleed_edges=[])]}
+    )
+    assert [s.id for s in parsed.slots] == ["hero", "logo"]
+
+
+def test_slot_ids_must_be_unique_within_a_file():
+    with pytest.raises(ValidationError, match="hero"):
+        SlotsFile.model_validate({"template_id": "t", "slots": [slot_data(), slot_data()]})
