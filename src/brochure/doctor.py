@@ -11,7 +11,8 @@ from pathlib import Path
 
 MIN_PYTHON = (3, 12)
 DEFAULT_GS_ROOT = Path(r"C:\Program Files\gs")
-GS_PATH_NAMES = ("gswin64c", "gswin32c", "gs")
+GS_PATH_NAMES_WINDOWS = ("gswin64c", "gswin32c", "gs")
+GS_PATH_NAMES_POSIX = ("gs",)
 # <repo>/src/brochure/doctor.py -> <repo>/assets/fonts (valid for the editable install used in development)
 DEFAULT_FONTS_DIR = Path(__file__).resolve().parents[2] / "assets" / "fonts"
 
@@ -62,10 +63,13 @@ def find_ghostscript(*, which=None, gs_root: Path | None = None) -> GsLookup:
             return GsLookup(Path(configured), "GS_BIN")
         note = f"GS_BIN is set to {configured} but that file does not exist"
 
-    for name in GS_PATH_NAMES:
+    for name in GS_PATH_NAMES_WINDOWS if _is_windows() else GS_PATH_NAMES_POSIX:
         found = which(name)
         if found:
             return GsLookup(Path(found), "PATH", note)
+
+    if not _is_windows():
+        return GsLookup(note=note)
 
     installed = sorted(gs_root.glob("*/bin/gswin64c.exe"), key=_version_key, reverse=True)
     if installed:

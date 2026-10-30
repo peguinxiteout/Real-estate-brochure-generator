@@ -5,6 +5,8 @@ import pytest
 
 from brochure.doctor import find_ghostscript
 
+pytestmark = pytest.mark.usefixtures("windows")
+
 
 def make_exe(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)

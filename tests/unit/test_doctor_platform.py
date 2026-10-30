@@ -1,5 +1,5 @@
 """Platform-specific fix text and Ghostscript lookup. sys.platform is monkeypatched; nothing real is probed."""
-from brochure.doctor import GsLookup, check_ghostscript, check_weasyprint
+from brochure.doctor import GsLookup, check_ghostscript, check_weasyprint, find_ghostscript
 
 NATIVE_LIBS_ERROR = "cannot load library 'libgobject-2.0-0': error 0x7e"
 
@@ -38,3 +38,43 @@ def test_on_linux_a_missing_ghostscript_suggests_apt(linux):
     check = check_ghostscript(GsLookup())
 
     assert check.fixes == ("sudo apt install ghostscript",)
+
+
+def make_exe(path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("")
+    return path
+
+
+def test_on_linux_the_lookup_skips_program_files(linux, tmp_path, monkeypatch):
+    monkeypatch.delenv("GS_BIN", raising=False)
+    root = tmp_path / "gs"
+    make_exe(root / "gs10.04.0" / "bin" / "gswin64c.exe")
+
+    result = find_ghostscript(which=lambda name: None, gs_root=root)
+
+    assert result.path is None
+    assert result.source is None
+
+
+def test_on_linux_gs_bin_wins_over_path(linux, tmp_path, monkeypatch):
+    from_env = make_exe(tmp_path / "custom" / "gs")
+    from_path = make_exe(tmp_path / "onpath" / "gs")
+    monkeypatch.setenv("GS_BIN", str(from_env))
+
+    result = find_ghostscript(which=lambda name: str(from_path))
+
+    assert (result.path, result.source) == (from_env, "GS_BIN")
+
+
+def test_on_linux_path_is_searched_for_gs_only(linux, monkeypatch):
+    monkeypatch.delenv("GS_BIN", raising=False)
+    asked = []
+
+    def which(name):
+        asked.append(name)
+        return None
+
+    find_ghostscript(which=which)
+
+    assert asked == ["gs"]
