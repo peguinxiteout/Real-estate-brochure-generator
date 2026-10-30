@@ -35,3 +35,14 @@ def test_valid_spec_parses():
     assert spec.pages[0].slots["hero"].image_path == "hero_tower.jpg"
     assert spec.qa_warnings[0].route_to == "layout"
     assert spec.version == 3
+
+
+@pytest.mark.parametrize("count", [0, 1, 6, 7, 9])
+def test_page_count_not_a_multiple_of_four_is_rejected(count):
+    with pytest.raises(ValidationError, match="multiple of 4"):
+        BrochureSpec.model_validate(spec_data(page_count=count))
+
+
+@pytest.mark.parametrize("count", [4, 8, 12])
+def test_page_count_multiple_of_four_is_accepted(count):
+    assert len(BrochureSpec.model_validate(spec_data(page_count=count)).pages) == count
