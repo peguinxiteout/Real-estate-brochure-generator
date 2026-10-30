@@ -1,0 +1,34 @@
+{
+  "project_facts": {
+    "name": "Aurelia Heights",
+    "rera_number": "P99999000000 (SAMPLE)",
+    "rera_state": "Maharashtra",
+    "location": "Meridian Park Road, Pune",
+    "configurations": [
+      {"label": "2 BHK", "carpet_area_sqft": 780},
+      {"label": "3 BHK", "carpet_area_sqft": 1090}
+    ],
+    "amenities": [
+      "Infinity pool", "Clubhouse", "Fully equipped gym", "Landscaped podium garden",
+      "Children's play area", "Co-working lounge", "Jogging track", "24x7 security"
+    ],
+    "specifications": [
+      {"category": "Flooring", "detail": "Vitrified tiles in living and bedrooms"},
+      {"category": "Kitchen", "detail": "Granite platform with stainless steel sink"},
+      {"category": "Doors", "detail": "Laminated flush doors with branded hardware"},
+      {"category": "Windows", "detail": "Powder-coated aluminium sliding windows"},
+      {"category": "Electrical", "detail": "Concealed copper wiring with modular switches"},
+      {"category": "Lifts", "detail": "Two high-speed lifts per tower"}
+    ],
+    "landmarks": [
+      {"name": "Meridian Metro Station", "distance_km": 1.2},
+      {"name": "Orchard International School", "distance_km": 0.8},
+      {"name": "Lakeside Hospital", "distance_km": 2.5},
+      {"name": "Central Business Park", "distance_km": 4.0},
+      {"name": "Meridian Mall", "distance_km": 1.8}
+    ],
+    "possession": "Dec 2028",
+    "tone_notes": "Warm and aspirational. Calm, confident, no hype and no superlatives."
+  },
+  "prompt": "Two towers of 2 and 3 BHK homes for upper-middle-class families who want green space close to the metro. Emphasise light, the podium garden and the short walk to the station."
+}
