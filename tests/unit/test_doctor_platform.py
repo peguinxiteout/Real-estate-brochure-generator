@@ -78,3 +78,17 @@ def test_on_linux_path_is_searched_for_gs_only(linux, monkeypatch):
     find_ghostscript(which=which)
 
     assert asked == ["gs"]
+
+
+def test_on_linux_the_not_found_message_does_not_mention_program_files(linux):
+    check = check_ghostscript(GsLookup())
+
+    assert check.detail == "not found (looked at GS_BIN, PATH)"
+
+
+def test_on_linux_a_bad_gs_bin_suggests_export_not_setx(linux):
+    note = "GS_BIN is set to /nope/gs but that file does not exist"
+
+    check = check_ghostscript(GsLookup(note=note))
+
+    assert check.fixes == ("sudo apt install ghostscript", 'export GS_BIN="<full path to gs>"    (add it to ~/.bashrc)')

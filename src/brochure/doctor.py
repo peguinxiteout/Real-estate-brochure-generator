@@ -24,6 +24,8 @@ MSYS2_FIXES = (
 )
 APT_PANGO_FIXES = ("sudo apt install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0",)
 APT_GS_FIX = "sudo apt install ghostscript"
+SETX_GS_BIN_FIX = 'setx GS_BIN "<full path to gswin64c.exe>"'
+EXPORT_GS_BIN_FIX = 'export GS_BIN="<full path to gs>"    (add it to ~/.bashrc)'
 GS_DOWNLOAD_FIX = "download the 64-bit installer from https://ghostscript.com/releases/gsdnld.html"
 
 
@@ -52,7 +54,7 @@ def _version_key(exe: Path) -> tuple[int, ...]:
 
 
 def find_ghostscript(*, which=None, gs_root: Path | None = None) -> GsLookup:
-    """Lookup order: GS_BIN env var, then PATH, then the highest version under C:\\Program Files\\gs."""
+    """Lookup order: GS_BIN env var, then PATH, then (Windows only) the highest version under C:\\Program Files\\gs."""
     which = which or shutil.which
     gs_root = DEFAULT_GS_ROOT if gs_root is None else gs_root
 
@@ -106,11 +108,13 @@ def check_ghostscript(lookup: GsLookup | None = None) -> Check:
     lookup = find_ghostscript() if lookup is None else lookup
     if lookup.path is not None:
         return Check("Ghostscript", True, f"{lookup.path} (via {lookup.source})")
-    detail = "not found (looked at GS_BIN, PATH, C:\\Program Files\\gs)"
-    fixes = [GS_DOWNLOAD_FIX if _is_windows() else APT_GS_FIX]
+    windows = _is_windows()
+    searched = "GS_BIN, PATH, C:\\Program Files\\gs" if windows else "GS_BIN, PATH"
+    detail = f"not found (looked at {searched})"
+    fixes = [GS_DOWNLOAD_FIX if windows else APT_GS_FIX]
     if lookup.note:
         detail = f"{lookup.note}; {detail}"
-        fixes.append('setx GS_BIN "<full path to gswin64c.exe>"')
+        fixes.append(SETX_GS_BIN_FIX if windows else EXPORT_GS_BIN_FIX)
     return Check("Ghostscript", False, detail, tuple(fixes))
 
 
