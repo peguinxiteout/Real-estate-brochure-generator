@@ -37,6 +37,21 @@ class ProjectFacts(ContractModel):
     tone_notes: str = ""
 
 
+class BriefForm(ContractModel):
+    """What the user filled in on the form: ProjectFacts with every field optional."""
+
+    name: str | None = None
+    rera_number: str | None = None
+    rera_state: str | None = None
+    location: str | None = None
+    configurations: list[Configuration] = []
+    amenities: list[str] = []
+    specifications: list[Specification] = []
+    landmarks: list[Landmark] = []
+    possession: str | None = None
+    tone_notes: str | None = None
+
+
 class Brief(ContractModel):
     """The user's starting point: structured facts plus a free-text prompt."""
 

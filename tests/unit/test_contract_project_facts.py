@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from brochure.contracts.project import Brief, ProjectFacts
+from brochure.contracts.project import Brief, BriefForm, ProjectFacts
 
 
 def facts_data(**overrides):
@@ -51,3 +51,19 @@ def test_brief_is_project_facts_plus_a_short_prompt():
     )
     assert brief.project_facts.name == "Aurelia Heights"
     assert brief.prompt.startswith("Premium")
+
+
+def test_brief_form_accepts_a_partly_filled_form_with_empty_lists_by_default():
+    form = BriefForm.model_validate({"name": "Aurelia Heights", "possession": "Dec 2028"})
+    assert form.name == "Aurelia Heights"
+    assert form.rera_number is None
+    assert (form.configurations, form.amenities, form.specifications, form.landmarks) == ([], [], [], [])
+
+
+def test_an_empty_brief_form_is_valid():
+    assert BriefForm().name is None
+
+
+def test_brief_form_rejects_unknown_fields():
+    with pytest.raises(ValidationError, match="Extra inputs"):
+        BriefForm.model_validate({"nmae": "typo"})
