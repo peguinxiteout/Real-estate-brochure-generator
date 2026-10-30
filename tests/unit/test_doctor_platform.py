@@ -32,3 +32,9 @@ def test_on_linux_missing_pango_suggests_apt_not_the_windows_tools(linux):
     check = check_weasyprint(raising(OSError(NATIVE_LIBS_ERROR)))
 
     assert check.fixes == ("sudo apt install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0",)
+
+
+def test_on_linux_a_missing_ghostscript_suggests_apt(linux):
+    check = check_ghostscript(GsLookup())
+
+    assert check.fixes == ("sudo apt install ghostscript",)

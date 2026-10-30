@@ -56,7 +56,7 @@ def test_found_ghostscript_passes_and_shows_path_and_source():
     assert check.fixes == ()
 
 
-def test_missing_ghostscript_fails_with_a_download_link():
+def test_missing_ghostscript_fails_with_a_download_link(windows):
     check = check_ghostscript(GsLookup())
 
     assert not check.ok
@@ -64,7 +64,7 @@ def test_missing_ghostscript_fails_with_a_download_link():
     assert any("https://ghostscript.com/releases/gsdnld.html" in fix for fix in check.fixes)
 
 
-def test_missing_ghostscript_with_a_bad_gs_bin_explains_it_and_suggests_setx():
+def test_missing_ghostscript_with_a_bad_gs_bin_explains_it_and_suggests_setx(windows):
     note = r"GS_BIN is set to C:\nope\gswin64c.exe but that file does not exist"
 
     check = check_ghostscript(GsLookup(note=note))

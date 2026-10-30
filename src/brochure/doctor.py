@@ -22,6 +22,7 @@ MSYS2_FIXES = (
     "setx WEASYPRINT_DLL_DIRECTORIES C:\\msys64\\mingw64\\bin    (then open a new terminal)",
 )
 APT_PANGO_FIXES = ("sudo apt install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0",)
+APT_GS_FIX = "sudo apt install ghostscript"
 GS_DOWNLOAD_FIX = "download the 64-bit installer from https://ghostscript.com/releases/gsdnld.html"
 
 
@@ -102,7 +103,7 @@ def check_ghostscript(lookup: GsLookup | None = None) -> Check:
     if lookup.path is not None:
         return Check("Ghostscript", True, f"{lookup.path} (via {lookup.source})")
     detail = "not found (looked at GS_BIN, PATH, C:\\Program Files\\gs)"
-    fixes = [GS_DOWNLOAD_FIX]
+    fixes = [GS_DOWNLOAD_FIX if _is_windows() else APT_GS_FIX]
     if lookup.note:
         detail = f"{lookup.note}; {detail}"
         fixes.append('setx GS_BIN "<full path to gswin64c.exe>"')
