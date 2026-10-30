@@ -1,0 +1,17 @@
+{
+  "company_name": "Kestrel Urbanscapes",
+  "logo_path": "logo.svg",
+  "colors": [
+    {"name": "primary", "hex": "#1F3A5F", "cmyk": [100, 80, 30, 25]},
+    {"name": "accent", "hex": "#C8A24A", "cmyk": [20, 30, 85, 5]}
+  ],
+  "fonts": {"heading": "Playfair Display", "body": "Inter"},
+  "about_text": "Kestrel Urbanscapes is a Pune-based developer of thoughtfully planned residential communities. For over fifteen years the company has delivered homes that put light, air and green space first, and it stays involved long after handover through a dedicated community care team.",
+  "contact": {
+    "phone": "+91 20 5555 0100",
+    "email": "sales@kestrel-urbanscapes.example",
+    "website": "https://kestrel-urbanscapes.example",
+    "address": "Sales gallery, 12 Meridian Park Road, Pune 411000"
+  },
+  "disclaimer": "All images are artist impressions and for illustration only. Specifications, plans and amenities are indicative and subject to change as approved by the competent authorities. This is not a legal offer. This is a fictional sample project; the RERA number shown is a placeholder."
+}
