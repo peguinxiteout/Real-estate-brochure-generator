@@ -71,9 +71,14 @@ def build_graph(agents: Agents, checkpointer, llm):
     def after_qa(state: PipelineState) -> Literal["copywriter", "layout", "human_review"]:
         return qa_next(state.qa_issues, state.qa_round)
 
-    def human_review(state: PipelineState) -> Command[Literal["export"]]:
-        interrupt({"ask": "review", "pdf_path": state.pdf_path, "page_images": state.page_images})
-        return Command(goto="export", update={"approval_status": "approved"})
+    def human_review(state: PipelineState) -> Command[Literal["export", "layout"]]:
+        """Pause for a person. Resume with "approved" or "changes_requested"."""
+        decision = interrupt({"ask": "review", "pdf_path": state.pdf_path, "page_images": state.page_images})
+        if decision == "approved":
+            return Command(goto="export", update={"approval_status": "approved"})
+        if decision == "changes_requested":
+            return Command(goto="layout", update={"approval_status": "pending", "qa_round": 0})
+        raise ValueError(f"resume human_review with 'approved' or 'changes_requested', not {decision!r}")
 
     def export(state: PipelineState):
         agents.export(state, llm)
@@ -85,7 +90,7 @@ def build_graph(agents: Agents, checkpointer, llm):
         ("layout", layout), ("renderer", renderer), ("qa", qa), ("export", export),
     ]:
         graph.add_node(name, step)
-    graph.add_node("human_review", human_review, destinations=("export",))
+    graph.add_node("human_review", human_review, destinations=("export", "layout"))
 
     graph.add_edge(START, "brief")
     graph.add_edge(START, "vision")

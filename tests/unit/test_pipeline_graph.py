@@ -105,3 +105,27 @@ def test_a_pass_with_no_issues_goes_straight_to_review_with_no_warnings():
     run, calls = run_with_qa([])
     assert calls["qa"] == 1 and run.state.qa_round == 1
     assert run.state.spec.qa_warnings == []
+
+
+def test_export_runs_only_after_approval():
+    agents, calls = counted(stub_agents())
+    run = Run(agents)
+    run.start()
+    assert calls["export"] == 0
+    run.resume("approved")
+    assert calls["export"] == 1
+
+
+def test_changes_requested_loops_through_layout_render_and_qa_and_back_to_review():
+    agents, calls = counted(stub_agents())
+    run = Run(agents)
+    run.start()
+    run.resume("changes_requested")
+    assert run.paused_at == ("human_review",)
+    assert (calls["copywriter"], calls["layout"], calls["renderer"], calls["qa"], calls["export"]) == (1, 2, 2, 2, 0)
+    assert run.state.approval_status == "pending"
+    assert run.state.qa_round == 1  # each round of human changes gets a fresh QA budget
+
+    run.resume("approved")
+    assert run.paused_at == ()
+    assert (run.state.approval_status, calls["export"]) == ("approved", 1)
