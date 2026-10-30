@@ -35,7 +35,6 @@ def write_schemas(out_dir: Path) -> list[Path]:
     written = []
     for name, text in schema_files().items():
         path = out_dir / name
-        path.write_text(text, encoding="utf-8", newline="
-")
+        path.write_text(text, encoding="utf-8", newline="\n")
         written.append(path)
     return written
