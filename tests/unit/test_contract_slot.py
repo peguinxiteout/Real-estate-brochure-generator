@@ -55,3 +55,9 @@ def test_unknown_bleed_edge_is_rejected():
 def test_a_bleed_edge_listed_twice_is_rejected():
     with pytest.raises(ValidationError, match="more than once"):
         Slot.model_validate(slot_data(bleed_edges=["top", "top"]))
+
+
+@pytest.mark.parametrize("width", [0, -5])
+def test_width_mm_must_be_positive(width):
+    with pytest.raises(ValidationError, match="width_mm"):
+        Slot.model_validate(slot_data(width_mm=width))

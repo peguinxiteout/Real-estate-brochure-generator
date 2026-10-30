@@ -1,7 +1,7 @@
 """slots.json: the fixed boxes a template offers, as written in the file."""
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 
 from brochure.contracts.base import ContractModel
 
@@ -12,7 +12,7 @@ class Slot(ContractModel):
     id: str
     type: Literal["image", "text", "qr"]
     page: int
-    width_mm: float
+    width_mm: float = Field(gt=0)
     height_mm: float
     bleed_edges: list[Edge] = []
     char_budget: int | None = None
