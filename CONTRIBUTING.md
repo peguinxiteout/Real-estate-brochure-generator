@@ -57,8 +57,9 @@ canned answers keyed by task and records every call.
 
 ## Branching and merging
 
-- `master` is always green and is never committed to directly.
-- One branch per feature or bug: `feature/<short-name>` or `fix/<short-name>`, cut from the latest `master`.
+- `master` is always green. Code is never committed to it directly.
+- Code changes (anything touching `src/`, `tests/`, `templates/`, `contracts/`, `tools/` or the CI workflow) go on a branch: one branch per feature or bug, `feature/<short-name>` or `fix/<short-name>`, cut from the latest `master`.
+- Docs-only changes (README, CHANGELOG, CONTRIBUTING wording) may be committed straight to `master` after the tests pass locally. Pull first and push right after.
 - Commit after each green TDD cycle, as described above.
 - Before merging: merge `master` into your branch, run the full test suite, and make sure it passes.
 - Merge into `master` with a merge commit (`git merge --no-ff`), not a squash, so the per-cycle history is kept. Delete the branch after merging.
