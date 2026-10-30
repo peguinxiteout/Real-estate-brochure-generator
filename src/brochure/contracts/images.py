@@ -17,7 +17,7 @@ class ImageTag(ContractModel):
     path: str
     kind: Literal["photo", "render", "floor_plan", "map"]
     subject: str
-    width_px: int
+    width_px: int = Field(gt=0)
     height_px: int
     quality: Literal["good", "fair", "poor"]
     features: list[str] = []

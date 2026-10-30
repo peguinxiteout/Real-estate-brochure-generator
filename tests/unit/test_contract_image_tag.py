@@ -29,3 +29,8 @@ def test_valid_image_tag_parses_and_round_trips_through_json():
 def test_focal_point_outside_0_to_1_is_rejected():
     with pytest.raises(ValidationError):
         ImageTag.model_validate(tag_data(focal_point={"x": 1.2, "y": 0.5}))
+
+
+def test_zero_width_px_is_rejected():
+    with pytest.raises(ValidationError):
+        ImageTag.model_validate(tag_data(width_px=0))
