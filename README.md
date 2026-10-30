@@ -1,0 +1,343 @@
+# Real estate brochure generator
+
+## 1. What this is
+
+An agentic system that turns a project brief, a prompt and a folder of photos into a print-ready brochure PDF for a
+real estate company in India. Agents fill pre-built HTML/CSS templates; they do not design pages from scratch. A human
+reviews and approves the result before it is exported.
+
+Scope of v1, as far as the repo defines it today:
+
+- One template, `classic-8pp`: 8 pages, A4 portrait, 3 mm bleed, 300 DPI target.
+- No pricing page. Pricing is left out of the template on purpose.
+- A4 is the only page size in the print config.
+
+Most of the system is not built yet. Section 2 says what exists and what does not.
+
+## 2. Status
+
+Built (see [docs/CHANGELOG.md](docs/CHANGELOG.md) for the history):
+
+- Contracts: Pydantic models for everything the pipeline passes around, plus exported JSON Schemas (section 6).
+- Print rules: print config and DPI maths (section 7).
+- Slots format, loader and the `classic-8pp` template (section 8).
+- LLM interface with a `FakeLLM` for tests (section 9). There is no real LLM client.
+- A fictional sample project, "Aurelia Heights" (section 10).
+- `brochure doctor`: checks Python, WeasyPrint, Ghostscript and bundled fonts. It is the only CLI command.
+- CI on GitHub Actions: runs the unit tests on pushes to `feature/**` and `fix/**` and on pull requests into `master`.
+
+Not built:
+
+- The agents (Brief, Vision, Copywriter, Layout, QA critic) and the graph that connects them.
+- The image tools and the renderer (HTML to PDF, bleed, crop marks, CMYK).
+- Export.
+- An API and a frontend.
+- Checks of text length against `char_budget` and of images against the DPI rule inside a pipeline. The maths exists; nothing runs it yet.
+
+## 3. How it will work
+
+None of these steps is built yet. This is the design the contracts were written for.
+
+```mermaid
+flowchart TD
+    IN["Inputs: brand kit, brief form + prompt, photos"] --> S1["Step 1: Brief agent"]
+    IN --> S2["Step 2: Vision agent"]
+    S2 --> S3["Step 3: Image tools"]
+    S1 --> S4["Step 4: Copywriter"]
+    S3 --> S5["Step 5: Layout agent"]
+    S4 --> S5
+    S5 --> S6["Step 6: Renderer"]
+    S6 --> S7["Step 7: QA critic"]
+    S7 -->|"issues, at most 3 rounds"| S4
+    S7 -->|"issues, at most 3 rounds"| S5
+    S7 -->|"no errors"| S8["Step 8: Human review"]
+    S8 -->|"chat edits"| S5
+    S8 -->|"approved"| S9["Step 9: Export"]
+```
+
+| Step | What it does |
+|---|---|
+| 1. Brief agent | Turns the form and the prompt into `ProjectFacts`. Lists required fields that are missing in `missing_fields` so the user can be asked. |
+| 2. Vision agent | Runs in parallel with step 1. Describes each photo as an `ImageTag` (kind, subject, quality, focal point). |
+| 3. Image tools | Prepare the photos for their slots, using the tags and the DPI rule. |
+| 4. Copywriter | Writes the text for each text slot, within its `char_budget`. |
+| 5. Layout agent | Chooses which image and text goes in which slot and produces the `BrochureSpec`. Also applies the human's chat edits. |
+| 6. Renderer | Fills the HTML/CSS template from the spec and produces the PDF and one PNG per page. |
+| 7. QA critic | Looks at the pages and the spec and returns `QAIssue`s. Each issue says who should fix it (`route_to`). The loop stops after 3 rounds; that limit is not in the code yet (`qa_round` only counts). |
+| 8. Human review | A person approves, or asks for changes in chat. |
+| 9. Export | Writes the approved PDF. |
+
+## 4. Repository layout
+
+```
+.github/workflows/tests.yml   CI: unit tests on branch pushes and pull requests
+contracts/json/               JSON Schema for each exported model (generated, committed)
+docs/CHANGELOG.md             history, newest entry first
+sample/                       fictional "Aurelia Heights" project (brand kit, brief, image manifest, logo)
+src/brochure/
+  cli.py                      `brochure` command (only `doctor`)
+  doctor.py                   environment checks and fix hints
+  print_config.py             A4 size, bleed, DPI thresholds
+  dpi.py                      min_pixels, effective_dpi, classify_dpi
+  slots.py                    load slots.json, compute min_px
+  contracts/                  Pydantic models and the schema export
+  llm/                        LLMClient, FakeLLM, Agent protocol
+templates/classic-8pp/        slots.json for the 8-page template (no HTML/CSS yet)
+tests/unit/                   fast tests, no network
+tests/integration/            tests that need WeasyPrint or Ghostscript
+tests/fixtures/               image_tags.json for the 12 sample images
+tools/                        export_schemas.py, make_sample_images.py
+README.md                     this file
+CONTRIBUTING.md               setup, TDD rules, branching rules
+pyproject.toml                dependencies, pytest markers
+```
+
+## 5. Getting started
+
+Setup is done in WSL (Ubuntu). The steps are in [CONTRIBUTING.md](CONTRIBUTING.md#setup-wsl-ubuntu). The examples below
+use the virtualenv from that page, `~/.venvs/brochure`, and are run from the repo root.
+
+Check the environment:
+
+```
+~/.venvs/brochure/bin/brochure doctor
+```
+
+The doctor prints one line per check and exits with 1 if any check fails. Python, WeasyPrint and Ghostscript are
+checked for real. The bundled-fonts check currently fails because `assets/fonts` is not in the repo yet (see
+section 13). Its "git restore" hint does not apply until the fonts are committed.
+
+Run the tests:
+
+```
+~/.venvs/brochure/bin/python -m pytest                       # everything
+~/.venvs/brochure/bin/python -m pytest -m "not integration"  # what CI runs
+~/.venvs/brochure/bin/python -m pytest -rs                   # also print the reason for every skip
+```
+
+With Ghostscript and Pango installed, expect every test to pass and nothing to be skipped. Without them, the
+integration tests skip with a stated reason. A skip is never meant to look like a pass.
+
+Generate the sample images (they are git-ignored):
+
+```
+~/.venvs/brochure/bin/python tools/make_sample_images.py
+```
+
+This writes the 12 JPEGs listed in `sample/images.json` to `sample/images/`. The output is the same on every run.
+
+## 6. The contracts
+
+The models are in `src/brochure/contracts/`. All of them reject unknown fields, so a typo in JSON is an error. Field
+names are plain snake_case and stable.
+
+| Model | What it is | Produced by / used by (as designed) |
+|---|---|---|
+| `BrandKit` | Company name, logo, colours (hex, optional CMYK), fonts, about text, contact, disclaimer. | Provided by the user. Used by Copywriter, Layout, Renderer. |
+| `BriefForm` | The form the user fills in: `ProjectFacts` with every field optional. | User. Read by the Brief agent. |
+| `Brief` | `{form: BriefForm, prompt: str}`. | User. Pipeline input. |
+| `ProjectFacts` | Validated facts: name, RERA number (required, non-empty), location, configurations, amenities, specifications, landmarks, possession, tone notes. | Brief agent. Used by Copywriter, Layout, QA critic. |
+| `ImageTag` | What one photo shows: kind, subject, size, quality, features, focal point (fractions 0..1). | Vision agent. Used by image tools and Layout. |
+| `Slot` / `SlotsFile` | One box on a page, and the file that lists them (section 8). | Written by hand per template. Read by the loader, then Layout, QA, Renderer. |
+| `BrochureSpec` | The filled brochure: template id, pages (layout id and the content of each slot), QA warnings, version. Page count must be a positive multiple of 4. | Layout agent. Used by Renderer, QA critic. |
+| `QAIssue` | A finding: check, page, severity, note, and `route_to` (copywriter, layout or none; required). | QA critic. Used by Copywriter, Layout and the human reviewer. |
+| `ImageManifest` | List of image files with pixel size, kind and intended slot. | Only the sample project uses it. |
+| `PipelineState` | What the graph carries: inputs, `project_facts`, `missing_fields`, `image_tags`, `slot_copy`, `spec`, `pdf_path`, `page_images`, `qa_issues`, `qa_round`, `approval_status`. | Every step reads and writes parts of it. |
+
+JSON Schemas for these models (except `BriefForm`, which is nested inside `Brief`) are in
+[contracts/json/](contracts/json/). The frontend generates its types from them. After changing a model, regenerate
+and commit them in the same branch:
+
+```
+~/.venvs/brochure/bin/python tools/export_schemas.py
+```
+
+A test fails, and names this command, if the committed files are out of date. It compares parsed JSON, so line
+endings do not matter.
+
+## 7. Print rules
+
+Defined in `src/brochure/print_config.py` and used everywhere; do not repeat the numbers elsewhere.
+
+- A4 portrait, 210 x 297 mm.
+- Bleed: 3 mm on every edge listed in a slot's `bleed_edges`.
+- Target resolution: 300 DPI.
+- Effective DPI = `min(img_w_px / slot_w_in, img_h_px / slot_h_in)`, where the slot size includes the bleed.
+- Pass at 300 DPI or more. Warn from 250 up to, not including, 300. Fail below 250.
+- `min_px = ceil(slot size in inches, bleed included, x 300)`.
+
+Worked example from the sample project. This script was run from the repo root and printed the two lines below it:
+
+```python
+import json
+from brochure.dpi import classify_dpi, effective_dpi
+from brochure.slots import load_slots
+
+template = load_slots("templates/classic-8pp/slots.json")
+manifest = json.load(open("sample/images.json"))["images"]
+
+for entry in manifest:
+    if entry["filename"] in ("hero_tower.jpg", "amenity_clubhouse.jpg"):
+        slot = template.get(entry["intended_slot"])
+        dpi = effective_dpi(entry["width_px"], entry["height_px"], slot.bleed_width_mm, slot.bleed_height_mm)
+        print(entry["filename"], f'{entry["width_px"]}x{entry["height_px"]} px',
+              "->", slot.id, f"{slot.bleed_width_mm:g}x{slot.bleed_height_mm:g} mm",
+              "min_px", slot.min_px, f"{dpi:.1f} DPI", classify_dpi(dpi).value)
+```
+
+```
+hero_tower.jpg 2600x3650 px -> hero 216x303 mm min_px (2552, 3579) 305.7 DPI pass
+amenity_clubhouse.jpg 1000x682 px -> amenity_img_b 88x60 mm min_px (1040, 709) 288.6 DPI warn
+```
+
+The hero slot is a full page (210 x 297 mm) bleeding on all four edges, so it is measured as 216 x 303 mm. The
+clubhouse image has fewer pixels than the 1040 x 709 the slot needs, so it lands in the warn band.
+
+## 8. Templates and slots
+
+A template lives in `templates/<template_id>/`. For now it is only `slots.json`; the HTML and CSS do not exist yet.
+Each slot has `id`, `type` (`image`, `text` or `qr`), `page`, `width_mm`, `height_mm`, `bleed_edges` (any of `top`,
+`right`, `bottom`, `left`; empty when the slot is inside the trim), `char_budget` (text slots only) and an optional
+`comment`. Sizes are the trim-side size; the loader adds the bleed from the config.
+
+```json
+{
+  "id": "hero",
+  "type": "image",
+  "page": 1,
+  "width_mm": 210,
+  "height_mm": 297,
+  "bleed_edges": ["top", "right", "bottom", "left"],
+  "comment": "Full-page cover image, bleeds off all four edges."
+}
+```
+
+`min_px` is never stored in the file. `load_slots` in `src/brochure/slots.py` computes it for image slots; a file that
+contains `min_px` is rejected.
+
+`classic-8pp` has 33 slots (14 image, 18 text, 1 QR):
+
+| Page | Content | Slots |
+|---|---|---|
+| 1 | Cover | `hero` (full bleed), `cover_logo`, `cover_title`, `cover_tagline`, `cover_rera_line` |
+| 2 | Overview | `overview_img` (bleeds top, left, right), `overview_headline`, `overview_intro`, `overview_highlights` |
+| 3 | Location | `location_map`, `location_img`, `location_address`, `location_landmarks` |
+| 4 | Amenities | `amenity_img_a`, `amenity_img_b`, `amenity_img_c`, `amenities_list`, `amenities_blurb` |
+| 5 | Configurations and floor plans | `plan_img_a`, `plan_img_b`, `config_table`, `plan_note` |
+| 6 | Specifications | `spec_banner` (bleeds top, left, right), `spec_img`, `specs_list` |
+| 7 | About the developer | `about_img`, `about_headline`, `about_text` |
+| 8 | Back cover | `back_logo`, `rera_number`, `rera_qr`, `contact_block`, `disclaimer` |
+
+The QR slot `rera_qr` is 25 x 25 mm. That size is provisional: compliance has not given a minimum QR size for RERA,
+and the slot's comment says so.
+
+## 9. LLM interface and testing without a network
+
+`src/brochure/llm/` has:
+
+- `LLMClient`: a protocol with `complete(task, payload, images=None) -> dict`. `task` names the agent step, for
+  example `"vision.tag"`. There is no real client yet.
+- `FakeLLM`: returns canned responses keyed by task, records every call (`llm.calls`), and raises
+  `MissingCannedResponse` naming the task when it has no answer.
+- `Agent[I, O]`: a typing-only protocol. An agent is a function `(inputs, llm) -> schema object`. No agents are
+  implemented.
+
+Unit tests never touch the network. Anything that would call a model uses `FakeLLM`. The `llm` pytest marker is
+reserved for tests that call a real model and is not used by any test yet.
+
+This example was run from the repo root:
+
+```python
+from brochure.contracts.images import ImageTag
+from brochure.llm import Agent, FakeLLM, LLMClient, MissingCannedResponse
+
+
+def tag_image(inputs: dict, llm: LLMClient) -> ImageTag:
+    return ImageTag.model_validate(llm.complete("vision.tag", inputs))
+
+
+llm = FakeLLM({"vision.tag": {
+    "path": "pool.jpg", "kind": "render", "subject": "Infinity pool", "width_px": 2200, "height_px": 1150,
+    "quality": "good", "features": ["pool"], "focal_point": {"x": 0.5, "y": 0.5},
+}})
+agent: Agent[dict, ImageTag] = tag_image
+tag = agent({"path": "pool.jpg"}, llm)
+print(tag.subject, [(c.task, c.payload) for c in llm.calls])
+
+try:
+    llm.complete("copy.write", {})
+except MissingCannedResponse as error:
+    print(error)
+```
+
+```
+Infinity pool [('vision.tag', {'path': 'pool.jpg'})]
+FakeLLM has no canned response for task 'copy.write' (it has: vision.tag)
+```
+
+## 10. The sample project
+
+"Aurelia Heights" is a fictional project by a fictional developer, Kestrel Urbanscapes, in Pune. Its RERA number is a
+placeholder (`P99999000000 (SAMPLE)`).
+
+| File | What it is |
+|---|---|
+| `sample/brand_kit.json` | A `BrandKit`. |
+| `sample/brief.json` | A `Brief`. The form is complete, so it converts to `ProjectFacts` unchanged. |
+| `sample/images.json` | An `ImageManifest` of 12 images with pixel sizes and the slot each is meant for. |
+| `sample/logo.svg` | The logo the brand kit points to. |
+| `tests/fixtures/image_tags.json` | An `ImageTag` for each of the 12 images, for code that runs before the Vision agent exists. |
+| `sample/images/` | Generated by `tools/make_sample_images.py`; not committed. |
+
+For their intended slots, three images fail the DPI rule and one warns:
+
+| Image | Slot | Effective DPI | Result |
+|---|---|---|---|
+| `amenity_gym.jpg` | `amenity_img_c` | 230.7 | fail |
+| `floorplan_3bhk.jpg` | `plan_img_b` | 207.8 | fail |
+| `developer_office.jpg` | `about_img` | 190.5 | fail |
+| `amenity_clubhouse.jpg` | `amenity_img_b` | 288.6 | warn |
+
+The other eight pass. Having bad images on purpose lets the QA and Layout code be tested against failures without
+needing real photos. A test pins exactly which images fail and which warns.
+
+## 11. How we work
+
+Full rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+- Test-driven: no production code without a failing test first; the red must fail on an assertion; commit after
+  each green cycle.
+- Code changes go on a `feature/<name>` or `fix/<name>` branch, cut from the latest `master`.
+- Docs-only changes (README, CHANGELOG, CONTRIBUTING wording) may go straight to `master` after the tests pass.
+- Merge with `git merge --no-ff` after merging `master` into the branch and running the full suite.
+- A change to the shared contracts (`src/brochure/contracts/`, `contracts/json/`, `templates/*/slots.json`) needs
+  review by the other developer before it merges.
+- Each feature branch adds an entry at the top of `docs/CHANGELOG.md`.
+
+## 12. Glossary
+
+| Term | Meaning |
+|---|---|
+| Trim | The final size of the page after cutting: 210 x 297 mm for A4. |
+| Bleed | Extra artwork (3 mm here) printed beyond the trim so no white edge shows after cutting. |
+| Full-bleed | An element that runs to the edge of the page, so it extends into the bleed. |
+| Crop marks | Small lines outside the page that show the printer where to cut. |
+| DPI | Dots (pixels) per inch. How sharp an image is at its printed size. |
+| CMYK | The four inks (cyan, magenta, yellow, black) a printer uses. Screens use RGB, so colours are converted for print. |
+| RERA | The Real Estate (Regulation and Development) Act. Each project has a registration number that must appear on marketing material. |
+| Carpet area | The usable floor area of a flat inside its walls, without the walls themselves. The unit is sq ft. |
+| Slot | A fixed box on a template page that holds one image, one piece of text or a QR code. |
+| Artist's impression | A rendered picture of the building, not a photograph. Brochures label these as illustrative. |
+
+## 13. Known limitations and follow-ups
+
+- Logo slots (`cover_logo`, `back_logo`) are image slots, so the DPI rule would apply to them. They need an exemption
+  for vector (SVG) logos.
+- Apart from the full-page hero, the slot sizes are placeholders.
+- `PipelineState` has no field for chat edits yet.
+- The 25 mm QR size is provisional.
+- The 3-round limit on the QA loop is not in the code; `qa_round` is only a counter.
+- `brochure doctor` fails the fonts check because `assets/fonts` (Playfair Display, Inter) is not in the repo.
+- `jinja2`, `qrcode` and `pypdf` are declared in `pyproject.toml` but nothing in the code uses them yet. WeasyPrint
+  is only used by the doctor.
+- Integration tests only check that WeasyPrint imports and that Ghostscript runs.

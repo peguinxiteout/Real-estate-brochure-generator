@@ -2,6 +2,11 @@
 
 Newest entry first.
 
+## 2026-10-30: README
+
+- Added `README.md`: what the project is, what is built and what is not, the planned pipeline, repository layout, getting started, the contracts, print rules, templates and slots, the LLM interface, the sample project, working rules, a glossary and known limitations.
+- `CONTRIBUTING.md`: docs-only changes may go straight to `master` after the tests pass; code changes still go on a `feature/` or `fix/` branch.
+
 ## 2026-10-30: CI
 
 - GitHub Actions workflow `.github/workflows/tests.yml`: job `tests` on ubuntu-latest, Python 3.12, pip cache. It installs with `pip install -e ".[dev]"` and runs `python -m pytest -m "not integration"`.
