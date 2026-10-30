@@ -2,7 +2,7 @@
 from dataclasses import replace
 
 
-from brochure.pipeline import ScriptedQA, stub_agents
+from brochure.pipeline import ScriptedQA, load_sample_data, stub_agents
 from tests.support import Run, counted, qa_issue, sample_state
 
 
@@ -141,3 +141,22 @@ def test_an_unknown_review_answer_is_asked_again_and_the_run_stays_at_review():
     run.resume("approved")
     assert run.paused_at == ()
     assert run.state.approval_status == "approved"
+
+
+def test_a_spy_agent_replaces_one_stub_and_the_other_stubs_still_work():
+    seen = []
+
+    def spy_copywriter(state, llm):
+        seen.append(state.project_facts.name)
+        return {slot.id: "SPY" for slot in load_sample_data().template.slots if slot.type == "text"}
+
+    agents, calls = counted(replace(stub_agents(), copywriter=spy_copywriter))
+    run = Run(agents)
+    run.start()
+
+    assert seen == ["Aurelia Heights"]
+    assert run.paused_at == ("human_review",)
+    cover_title = run.state.spec.pages[0].slots["cover_title"]
+    assert cover_title.text == "SPY"
+    assert (calls["layout"], calls["renderer"], calls["qa"]) == (1, 1, 1)
+    assert len(run.state.spec.pages) == 8
