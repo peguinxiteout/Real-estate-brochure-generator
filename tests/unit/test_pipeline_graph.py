@@ -94,3 +94,14 @@ def test_after_3_qa_rounds_the_run_moves_on_and_the_remaining_issues_become_spec
     assert (calls["copywriter"], calls["layout"], calls["renderer"], calls["qa"]) == (3, 3, 3, 3)
     assert run.state.qa_round == 3
     assert [i.note for i in run.state.spec.qa_warnings] == ["round 3"]
+
+
+def test_when_a_pass_reports_copywriter_and_layout_issues_the_earlier_step_runs_first():
+    run, calls = run_with_qa([[qa_issue("layout"), qa_issue("copywriter")]])
+    assert (calls["copywriter"], calls["layout"], calls["qa"]) == (2, 2, 2)
+
+
+def test_a_pass_with_no_issues_goes_straight_to_review_with_no_warnings():
+    run, calls = run_with_qa([])
+    assert calls["qa"] == 1 and run.state.qa_round == 1
+    assert run.state.spec.qa_warnings == []
