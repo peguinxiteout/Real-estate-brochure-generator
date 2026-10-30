@@ -34,4 +34,5 @@ addopts = "-ra --strict-markers"
 markers = [
     "slow: takes more than a second or two; deselect with -m 'not slow'",
     "integration: needs a real external tool (WeasyPrint, Ghostscript); skips with a reason when it is missing",
+    "llm: calls a real LLM (network, API key); never run in unit tests, deselect with -m 'not llm'",
 ]
