@@ -1,9 +1,11 @@
 import json
+
+import pytest
 import subprocess
 import sys
 from pathlib import Path
 
-from brochure.contracts.export import schema_files, write_schemas
+from brochure.contracts.export import EXPORTED_MODELS, schema_files, write_schemas
 
 EXPECTED = {
     "BrandKit.json",
@@ -59,3 +61,8 @@ def test_committed_schemas_match_the_models():
         f"contracts/json/ is out of date (differs or missing: {stale}; no longer a model: {extra}). "
         f"Regenerate and commit with: {REGENERATE}"
     )
+
+
+@pytest.mark.parametrize("model", EXPORTED_MODELS, ids=lambda m: m.__name__)
+def test_every_exported_model_rejects_unknown_fields(model):
+    assert model.model_config.get("extra") == "forbid"
