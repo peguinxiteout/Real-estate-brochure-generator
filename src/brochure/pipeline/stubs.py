@@ -13,6 +13,7 @@ from brochure.slots import SlotTemplate, load_slots
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TEMPLATE_ID = "classic-8pp"
 LOGO_SLOTS = ("cover_logo", "back_logo")
+SAMPLE_RERA_URL = "https://example.com/rera/sample"  # a fake address; the real one is not decided
 
 
 @dataclass(frozen=True)
@@ -73,6 +74,8 @@ def stub_agents(data: SampleData | None = None) -> Agents:
                 fills[slot.page][slot.id] = SlotFill(text=state.slot_copy[slot.id])
             if slot.id == "rera_number":  # a legal fact: it comes from the facts, not from the copy
                 fills[slot.page][slot.id] = SlotFill(text=state.project_facts.rera_number)
+            if slot.type == "qr":
+                fills[slot.page][slot.id] = SlotFill(qr_data=SAMPLE_RERA_URL)
             if slot.id in LOGO_SLOTS:
                 fills[slot.page][slot.id] = SlotFill(image_path=state.brand_kit.logo_path)
         pages = [PageSpec(layout_id=f"{state.template_id}-p{n}", slots=fills[n]) for n in sorted(fills)]
