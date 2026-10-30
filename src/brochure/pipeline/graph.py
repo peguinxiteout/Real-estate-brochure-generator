@@ -4,6 +4,7 @@ from typing import Literal
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 
+from brochure.contracts.project import BriefForm
 from brochure.contracts.state import PipelineState
 from brochure.pipeline.agents import Agents
 
@@ -17,6 +18,15 @@ def build_graph(agents: Agents, checkpointer, llm):
 
     def vision(state: PipelineState):
         return {"image_tags": agents.vision(state, llm)}
+
+    def after_brief(state: PipelineState) -> Literal["ask_user", "brief_ready"]:
+        return "ask_user" if state.missing_fields else "brief_ready"
+
+    def ask_user(state: PipelineState):
+        """Pause and ask for the missing fields. The caller resumes with {field: value}; the brief step then runs again."""
+        answers = interrupt({"ask": "brief", "missing_fields": state.missing_fields})
+        form = BriefForm.model_validate({**state.brief.form.model_dump(), **answers})
+        return {"brief": state.brief.model_copy(update={"form": form})}
 
     def brief_ready(state: PipelineState):
         """Joins the brief branch with the vision branch; it does no work."""
@@ -45,7 +55,7 @@ def build_graph(agents: Agents, checkpointer, llm):
 
     graph = StateGraph(PipelineState)
     for name, step in [
-        ("brief", brief), ("vision", vision), ("brief_ready", brief_ready), ("copywriter", copywriter),
+        ("brief", brief), ("ask_user", ask_user), ("vision", vision), ("brief_ready", brief_ready), ("copywriter", copywriter),
         ("layout", layout), ("renderer", renderer), ("qa", qa), ("export", export),
     ]:
         graph.add_node(name, step)
@@ -53,7 +63,8 @@ def build_graph(agents: Agents, checkpointer, llm):
 
     graph.add_edge(START, "brief")
     graph.add_edge(START, "vision")
-    graph.add_edge("brief", "brief_ready")
+    graph.add_conditional_edges("brief", after_brief)
+    graph.add_edge("ask_user", "brief")
     graph.add_edge(["brief_ready", "vision"], "copywriter")
     graph.add_edge("copywriter", "layout")
     graph.add_edge("layout", "renderer")
