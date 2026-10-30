@@ -12,6 +12,7 @@ from brochure.slots import SlotTemplate, load_slots
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TEMPLATE_ID = "classic-8pp"
+LOGO_SLOTS = ("cover_logo", "back_logo")
 
 
 @dataclass(frozen=True)
@@ -68,6 +69,8 @@ def stub_agents(data: SampleData | None = None) -> Agents:
             fills[slot.page][slot.id] = empty[slot.type]
             if slot.id in image_for_slot:
                 fills[slot.page][slot.id] = SlotFill(image_path=image_for_slot[slot.id])
+            if slot.id in LOGO_SLOTS:
+                fills[slot.page][slot.id] = SlotFill(image_path=state.brand_kit.logo_path)
         pages = [PageSpec(layout_id=f"{state.template_id}-p{n}", slots=fills[n]) for n in sorted(fills)]
         return BrochureSpec(template_id=state.template_id, pages=pages)
 

@@ -75,3 +75,10 @@ def test_layout_stub_puts_each_manifest_image_in_its_intended_slot(llm):
     assert {e.intended_slot: fills[e.intended_slot].image_path for e in manifest.images} == {
         e.intended_slot: e.filename for e in manifest.images
     }
+
+
+def test_layout_stub_uses_the_brand_kit_logo_in_both_logo_slots(llm):
+    state, spec = laid_out(llm)
+    fills = slot_fills(spec)
+    assert fills["cover_logo"].image_path == state.brand_kit.logo_path
+    assert fills["back_logo"].image_path == state.brand_kit.logo_path
