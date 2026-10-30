@@ -26,3 +26,8 @@ def test_loads_the_slots_in_file_order(tmp_path):
 def test_full_page_slot_with_all_four_bleed_edges_needs_2552_by_3579_px(tmp_path):
     hero = load_slots(write_slots(tmp_path, FULL_PAGE)).get("hero")
     assert hero.min_px == (2552, 3579)
+
+
+def test_slot_inside_the_trim_needs_no_bleed_pixels(tmp_path):
+    photo = {**FULL_PAGE, "id": "photo", "width_mm": 180, "height_mm": 120, "bleed_edges": []}
+    assert load_slots(write_slots(tmp_path, photo)).get("photo").min_px == (2126, 1418)
