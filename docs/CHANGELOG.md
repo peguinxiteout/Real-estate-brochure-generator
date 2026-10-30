@@ -2,6 +2,12 @@
 
 Newest entry first.
 
+## 2026-10-30: CI
+
+- GitHub Actions workflow `.github/workflows/tests.yml`: job `tests` on ubuntu-latest, Python 3.12, pip cache. It installs with `pip install -e ".[dev]"` and runs `python -m pytest -m "not integration"`.
+- Runs on every push to `feature/**` and `fix/**` and on every pull request into `master`. A newer run on the same ref cancels the older one. Permissions are `contents: read`; no secrets.
+- Integration tests (WeasyPrint, Ghostscript) are excluded for now; the runner does not install Ghostscript or extra Pango packages.
+
 ## 2026-10-30: Contracts (Week 0)
 
 Shared contracts, so a second developer can build against them without waiting for the agents. No agents, graph or rendering yet.
