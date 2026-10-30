@@ -12,3 +12,7 @@ def _exact(value: float) -> Fraction:
 
 def min_pixels(size_mm: float, dpi: int) -> int:
     return math.ceil(_exact(size_mm) / MM_PER_INCH * dpi)
+
+
+def effective_dpi(width_px: int, height_px: int, slot_width_mm: float, slot_height_mm: float) -> float:
+    return float(Fraction(width_px) / (_exact(slot_width_mm) / MM_PER_INCH))
