@@ -61,3 +61,17 @@ def test_layout_stub_makes_8_pages_with_every_slot_of_the_template_filled_exactl
     placed = sorted((n, slot_id) for n, page in enumerate(spec.pages, start=1) for slot_id in page.slots)
     assert placed == sorted((s.page, s.id) for s in template.slots)
     assert llm.calls == []
+
+
+def slot_fills(spec):
+    return {slot_id: fill for page in spec.pages for slot_id, fill in page.slots.items()}
+
+
+def test_layout_stub_puts_each_manifest_image_in_its_intended_slot(llm):
+    _, spec = laid_out(llm)
+    fills = slot_fills(spec)
+    manifest = load_sample_data().manifest
+    assert len(manifest.images) == 12
+    assert {e.intended_slot: fills[e.intended_slot].image_path for e in manifest.images} == {
+        e.intended_slot: e.filename for e in manifest.images
+    }

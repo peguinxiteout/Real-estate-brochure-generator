@@ -61,10 +61,13 @@ def stub_agents(data: SampleData | None = None) -> Agents:
         return {**data.copy, **derived}
 
     def layout(state: PipelineState, llm) -> BrochureSpec:
+        image_for_slot = {e.intended_slot: e.filename for e in data.manifest.images}
         fills: dict[int, dict[str, SlotFill]] = {n: {} for n in range(1, 9)}
         for slot in data.template.slots:
             empty = {"text": SlotFill(text=""), "image": SlotFill(image_path=""), "qr": SlotFill(qr_data="")}
             fills[slot.page][slot.id] = empty[slot.type]
+            if slot.id in image_for_slot:
+                fills[slot.page][slot.id] = SlotFill(image_path=image_for_slot[slot.id])
         pages = [PageSpec(layout_id=f"{state.template_id}-p{n}", slots=fills[n]) for n in sorted(fills)]
         return BrochureSpec(template_id=state.template_id, pages=pages)
 
