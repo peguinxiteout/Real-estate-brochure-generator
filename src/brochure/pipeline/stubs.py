@@ -18,6 +18,7 @@ class SampleData:
     template: SlotTemplate
     manifest: ImageManifest
     image_tags: list[ImageTag]
+    copy: dict[str, str]  # text that cannot be derived from the facts or the brand kit
 
 
 def _read_json(path: Path):
@@ -30,6 +31,7 @@ def load_sample_data(root: Path = REPO_ROOT) -> SampleData:
         template=load_slots(root / "templates" / TEMPLATE_ID / "slots.json"),
         manifest=ImageManifest.model_validate(_read_json(root / "sample" / "images.json")),
         image_tags=[ImageTag.model_validate(t) for t in _read_json(root / "sample" / "image_tags.json")],
+        copy=_read_json(root / "sample" / "stub_copy.json"),
     )
 
 
@@ -39,4 +41,22 @@ def stub_agents(data: SampleData | None = None) -> Agents:
     def vision(state: PipelineState, llm) -> list[ImageTag]:
         return list(data.image_tags)
 
-    return Agents(brief=None, vision=vision, copywriter=None, layout=None, renderer=None, qa=None, export=None)
+    def copywriter(state: PipelineState, llm) -> dict[str, str]:
+        facts, brand = state.project_facts, state.brand_kit
+        contact = brand.contact
+        lines = "\n".join
+        derived = {
+            "cover_rera_line": f"RERA No. {facts.rera_number}",
+            "rera_number": facts.rera_number,
+            "location_address": facts.location,
+            "location_landmarks": lines(f"{m.name}, {m.distance_km:g} km" for m in facts.landmarks),
+            "amenities_list": lines(facts.amenities),
+            "config_table": lines(f"{c.label}: {c.carpet_area_sqft:g} sq ft carpet" for c in facts.configurations),
+            "specs_list": lines(f"{x.category}: {x.detail}" for x in facts.specifications),
+            "about_text": brand.about_text,
+            "contact_block": lines(v for v in (contact.phone, contact.email, contact.website, contact.address) if v),
+            "disclaimer": brand.disclaimer,
+        }
+        return {**data.copy, **derived}
+
+    return Agents(brief=None, vision=vision, copywriter=copywriter, layout=None, renderer=None, qa=None, export=None)

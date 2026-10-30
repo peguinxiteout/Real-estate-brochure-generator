@@ -5,7 +5,7 @@ import pytest
 
 from brochure.contracts.images import ImageTag
 from brochure.llm import FakeLLM
-from brochure.pipeline.stubs import stub_agents
+from brochure.pipeline.stubs import load_sample_data, stub_agents
 from tests.support import ROOT, sample_state
 
 
@@ -19,4 +19,18 @@ def test_vision_stub_returns_the_tags_of_the_12_sample_images(llm):
     expected = [ImageTag.model_validate(t) for t in json.loads((ROOT / "sample" / "image_tags.json").read_text(encoding="utf-8"))]
     assert len(tags) == 12
     assert tags == expected
+    assert llm.calls == []
+
+
+def text_slots():
+    return [s for s in load_sample_data().template.slots if s.type == "text"]
+
+
+def test_copywriter_stub_writes_every_text_slot_within_its_char_budget(llm):
+    copy = stub_agents().copywriter(sample_state(), llm)
+    slots = text_slots()
+    assert set(copy) == {s.id for s in slots}
+    too_long = {s.id: len(copy[s.id]) for s in slots if len(copy[s.id]) > s.char_budget}
+    assert too_long == {}
+    assert all(copy[s.id].strip() for s in slots)
     assert llm.calls == []
