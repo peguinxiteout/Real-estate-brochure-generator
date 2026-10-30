@@ -43,3 +43,21 @@ def test_stub_copy_file_only_names_text_slots_and_fits_their_budgets():
     assert set(data.copy) <= set(budgets)
     assert all(isinstance(v, str) and v.strip() for v in data.copy.values())
     assert {k: len(v) for k, v in data.copy.items() if len(v) > budgets[k]} == {}
+
+
+def laid_out(llm):
+    """The sample state after the copywriter, and the spec the layout stub makes from it."""
+    agents = stub_agents()
+    state = sample_state()
+    state = state.model_copy(update={"slot_copy": agents.copywriter(state, llm), "image_tags": agents.vision(state, llm)})
+    return state, agents.layout(state, llm)
+
+
+def test_layout_stub_makes_8_pages_with_every_slot_of_the_template_filled_exactly_once(llm):
+    _, spec = laid_out(llm)
+    template = load_sample_data().template
+    assert spec.template_id == "classic-8pp"
+    assert len(spec.pages) == 8
+    placed = sorted((n, slot_id) for n, page in enumerate(spec.pages, start=1) for slot_id in page.slots)
+    assert placed == sorted((s.page, s.id) for s in template.slots)
+    assert llm.calls == []

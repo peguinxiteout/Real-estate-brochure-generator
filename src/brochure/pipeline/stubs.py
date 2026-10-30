@@ -5,6 +5,7 @@ from pathlib import Path
 
 from brochure.contracts.images import ImageTag
 from brochure.contracts.manifest import ImageManifest
+from brochure.contracts.spec import BrochureSpec, PageSpec, SlotFill
 from brochure.contracts.state import PipelineState
 from brochure.pipeline.agents import Agents
 from brochure.slots import SlotTemplate, load_slots
@@ -59,4 +60,12 @@ def stub_agents(data: SampleData | None = None) -> Agents:
         }
         return {**data.copy, **derived}
 
-    return Agents(brief=None, vision=vision, copywriter=copywriter, layout=None, renderer=None, qa=None, export=None)
+    def layout(state: PipelineState, llm) -> BrochureSpec:
+        fills: dict[int, dict[str, SlotFill]] = {n: {} for n in range(1, 9)}
+        for slot in data.template.slots:
+            empty = {"text": SlotFill(text=""), "image": SlotFill(image_path=""), "qr": SlotFill(qr_data="")}
+            fills[slot.page][slot.id] = empty[slot.type]
+        pages = [PageSpec(layout_id=f"{state.template_id}-p{n}", slots=fills[n]) for n in sorted(fills)]
+        return BrochureSpec(template_id=state.template_id, pages=pages)
+
+    return Agents(brief=None, vision=vision, copywriter=copywriter, layout=layout, renderer=None, qa=None, export=None)
