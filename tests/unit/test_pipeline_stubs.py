@@ -97,3 +97,14 @@ def test_layout_stub_sets_qr_data_for_the_rera_qr_slot(llm):
     _, spec = laid_out(llm)
     fill = slot_fills(spec)["rera_qr"]
     assert fill.qr_data and fill.qr_data.startswith("https://")
+
+
+def test_renderer_stub_returns_8_clearly_fake_page_paths_and_creates_no_files(llm, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    state, spec = laid_out(llm)
+    result = stub_agents().renderer(state.model_copy(update={"spec": spec}), llm)
+    assert "FAKE" in result.pdf_path and result.pdf_path.endswith(".pdf")
+    assert len(result.page_images) == 8
+    assert all("FAKE" in p and p.endswith(".png") for p in result.page_images)
+    assert len(set(result.page_images)) == 8
+    assert list(tmp_path.iterdir()) == []

@@ -7,7 +7,7 @@ from brochure.contracts.images import ImageTag
 from brochure.contracts.manifest import ImageManifest
 from brochure.contracts.spec import BrochureSpec, PageSpec, SlotFill
 from brochure.contracts.state import PipelineState
-from brochure.pipeline.agents import Agents
+from brochure.pipeline.agents import Agents, RenderResult
 from brochure.slots import SlotTemplate, load_slots
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -81,4 +81,12 @@ def stub_agents(data: SampleData | None = None) -> Agents:
         pages = [PageSpec(layout_id=f"{state.template_id}-p{n}", slots=fills[n]) for n in sorted(fills)]
         return BrochureSpec(template_id=state.template_id, pages=pages)
 
-    return Agents(brief=None, vision=vision, copywriter=copywriter, layout=layout, renderer=None, qa=None, export=None)
+    def renderer(state: PipelineState, llm) -> RenderResult:
+        """Renders nothing. Returns fake paths (FAKE-NOT-RENDERED/...), one PNG per page of the spec; no file exists."""
+        pages = len(state.spec.pages)
+        return RenderResult(
+            pdf_path="FAKE-NOT-RENDERED/brochure.pdf",
+            page_images=[f"FAKE-NOT-RENDERED/page-{n}.png" for n in range(1, pages + 1)],
+        )
+
+    return Agents(brief=None, vision=vision, copywriter=copywriter, layout=layout, renderer=renderer, qa=None, export=None)
