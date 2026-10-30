@@ -3,6 +3,8 @@ import math
 from enum import StrEnum
 from fractions import Fraction
 
+from brochure.print_config import PRINT, PrintConfig
+
 MM_PER_INCH = Fraction("25.4")
 
 
@@ -27,9 +29,9 @@ class DpiStatus(StrEnum):
     FAIL = "fail"
 
 
-def classify_dpi(dpi: float) -> DpiStatus:
-    if dpi >= 300:
+def classify_dpi(dpi: float, config: PrintConfig = PRINT) -> DpiStatus:
+    if dpi >= config.target_dpi:
         return DpiStatus.PASS
-    if dpi >= 250:
+    if dpi >= config.warn_dpi:
         return DpiStatus.WARN
     return DpiStatus.FAIL
