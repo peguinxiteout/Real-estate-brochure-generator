@@ -77,3 +77,11 @@ def test_a_layout_issue_sends_the_run_back_to_layout_without_rewriting_the_copy(
     assert run.paused_at == ("human_review",)
     assert (calls["copywriter"], calls["layout"], calls["renderer"], calls["qa"]) == (1, 2, 2, 2)
     assert run.state.qa_round == 2
+
+
+def test_an_issue_routed_to_none_does_not_loop_and_is_kept_as_a_warning_on_the_spec():
+    run, calls = run_with_qa([[qa_issue("none", "cosmetic")]])
+    assert run.paused_at == ("human_review",)
+    assert (calls["copywriter"], calls["layout"], calls["renderer"], calls["qa"]) == (1, 1, 1, 1)
+    assert run.state.qa_round == 1
+    assert [i.note for i in run.state.spec.qa_warnings] == ["cosmetic"]

@@ -5,8 +5,19 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 
 from brochure.contracts.project import BriefForm
+from brochure.contracts.qa import QAIssue
 from brochure.contracts.state import PipelineState
 from brochure.pipeline.agents import Agents
+
+
+def qa_next(issues: list[QAIssue], qa_round: int) -> Literal["copywriter", "layout", "human_review"]:
+    """Where the run goes after a QA pass: the earliest step an issue is routed to, otherwise on to review."""
+    routes = {issue.route_to for issue in issues}
+    if "copywriter" in routes:
+        return "copywriter"
+    if "layout" in routes:
+        return "layout"
+    return "human_review"
 
 
 def build_graph(agents: Agents, checkpointer, llm):
@@ -43,15 +54,14 @@ def build_graph(agents: Agents, checkpointer, llm):
         return {"pdf_path": result.pdf_path, "page_images": result.page_images}
 
     def qa(state: PipelineState):
-        return {"qa_issues": agents.qa(state, llm), "qa_round": state.qa_round + 1}
+        issues, qa_round = agents.qa(state, llm), state.qa_round + 1
+        update = {"qa_issues": issues, "qa_round": qa_round}
+        if issues and qa_next(issues, qa_round) == "human_review":
+            update["spec"] = state.spec.model_copy(update={"qa_warnings": issues})  # shown to the reviewer
+        return update
 
     def after_qa(state: PipelineState) -> Literal["copywriter", "layout", "human_review"]:
-        routes = {issue.route_to for issue in state.qa_issues}
-        if "copywriter" in routes:
-            return "copywriter"
-        if "layout" in routes:
-            return "layout"
-        return "human_review"
+        return qa_next(state.qa_issues, state.qa_round)
 
     def human_review(state: PipelineState) -> Command[Literal["export"]]:
         interrupt({"ask": "review", "pdf_path": state.pdf_path, "page_images": state.page_images})
