@@ -25,3 +25,9 @@ class Slot(ContractModel):
         if self.type != "text" and self.char_budget is not None:
             raise ValueError(f"only text slots have a char_budget, but {self.type} slot {self.id!r} has one")
         return self
+
+    @model_validator(mode="after")
+    def _bleed_edges_are_unique(self) -> "Slot":
+        if len(set(self.bleed_edges)) != len(self.bleed_edges):
+            raise ValueError(f"slot {self.id!r} lists a bleed edge more than once")
+        return self

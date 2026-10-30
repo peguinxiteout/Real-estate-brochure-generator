@@ -45,3 +45,13 @@ def test_text_slot_needs_a_char_budget():
 def test_only_text_slots_may_have_a_char_budget():
     with pytest.raises(ValidationError, match="char_budget"):
         Slot.model_validate(slot_data(char_budget=40))
+
+
+def test_unknown_bleed_edge_is_rejected():
+    with pytest.raises(ValidationError, match="top"):
+        Slot.model_validate(slot_data(bleed_edges=["middle"]))
+
+
+def test_a_bleed_edge_listed_twice_is_rejected():
+    with pytest.raises(ValidationError, match="more than once"):
+        Slot.model_validate(slot_data(bleed_edges=["top", "top"]))
