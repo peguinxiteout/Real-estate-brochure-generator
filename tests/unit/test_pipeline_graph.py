@@ -70,3 +70,10 @@ def test_a_copywriter_issue_sends_the_run_back_through_copy_layout_render_and_qa
     assert run.state.qa_round == 2
     assert run.state.qa_issues == []
     assert run.state.spec.qa_warnings == []
+
+
+def test_a_layout_issue_sends_the_run_back_to_layout_without_rewriting_the_copy():
+    run, calls = run_with_qa([[qa_issue("layout")]])
+    assert run.paused_at == ("human_review",)
+    assert (calls["copywriter"], calls["layout"], calls["renderer"], calls["qa"]) == (1, 2, 2, 2)
+    assert run.state.qa_round == 2

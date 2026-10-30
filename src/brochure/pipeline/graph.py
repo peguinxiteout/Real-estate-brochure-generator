@@ -45,9 +45,12 @@ def build_graph(agents: Agents, checkpointer, llm):
     def qa(state: PipelineState):
         return {"qa_issues": agents.qa(state, llm), "qa_round": state.qa_round + 1}
 
-    def after_qa(state: PipelineState) -> Literal["copywriter", "human_review"]:
-        if any(issue.route_to == "copywriter" for issue in state.qa_issues):
+    def after_qa(state: PipelineState) -> Literal["copywriter", "layout", "human_review"]:
+        routes = {issue.route_to for issue in state.qa_issues}
+        if "copywriter" in routes:
             return "copywriter"
+        if "layout" in routes:
+            return "layout"
         return "human_review"
 
     def human_review(state: PipelineState) -> Command[Literal["export"]]:
