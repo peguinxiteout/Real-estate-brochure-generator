@@ -59,7 +59,7 @@ flowchart TD
 |---|---|
 | 1. Brief agent | Turns the form and the prompt into `ProjectFacts`. Lists required fields that are missing in `missing_fields` so the user can be asked. |
 | 2. Vision agent | Runs in parallel with step 1. Describes each photo as an `ImageTag` (kind, subject, quality, focal point). |
-| 3. Image tools | Prepare the photos for their slots, using the tags and the DPI rule. |
+| 3. Image tools | Plain code, not an agent. For each image: crops it to its slot's aspect ratio around the focal point, fixes exposure, runs the DPI check, and upscales by at most 2x. Low-resolution images are flagged and limited to small slots. Planned, not built. |
 | 4. Copywriter | Writes the text for each text slot, within its `char_budget`. |
 | 5. Layout agent | Chooses which image and text goes in which slot and produces the `BrochureSpec`. Also applies the human's chat edits. |
 | 6. Renderer | Fills the HTML/CSS template from the spec and produces the PDF and one PNG per page. |
