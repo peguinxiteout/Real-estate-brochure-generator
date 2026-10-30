@@ -126,3 +126,9 @@ def test_qa_stub_reports_the_scripted_issues_for_the_current_round(llm):
     assert [i.note for i in qa(state.model_copy(update={"qa_round": 0}), llm)] == ["first"]
     assert [i.note for i in qa(state.model_copy(update={"qa_round": 1}), llm)] == ["second", "third"]
     assert qa(state.model_copy(update={"qa_round": 2}), llm) == []
+
+
+def test_export_stub_does_nothing_and_returns_nothing(llm, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert stub_agents().export(sample_state(), llm) is None
+    assert list(tmp_path.iterdir()) == []

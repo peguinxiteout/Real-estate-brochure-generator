@@ -102,4 +102,8 @@ def stub_agents(data: SampleData | None = None, qa=None) -> Agents:
             page_images=[f"FAKE-NOT-RENDERED/page-{n}.png" for n in range(1, pages + 1)],
         )
 
-    return Agents(brief=None, vision=vision, copywriter=copywriter, layout=layout, renderer=renderer, qa=qa or ScriptedQA(), export=None)
+    def export(state: PipelineState, llm) -> None:
+        """Exports nothing; it only marks the end of an approved run."""
+        return None
+
+    return Agents(brief=None, vision=vision, copywriter=copywriter, layout=layout, renderer=renderer, qa=qa or ScriptedQA(), export=export)
