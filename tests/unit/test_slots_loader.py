@@ -1,0 +1,23 @@
+import json
+
+import pytest
+from pydantic import ValidationError
+
+from brochure.print_config import PrintConfig
+from brochure.slots import load_slots
+
+FULL_PAGE = {"id": "hero", "type": "image", "page": 1, "width_mm": 210, "height_mm": 297,
+             "bleed_edges": ["top", "right", "bottom", "left"]}
+
+
+def write_slots(tmp_path, *slots):
+    path = tmp_path / "slots.json"
+    path.write_text(json.dumps({"template_id": "t", "slots": list(slots)}), encoding="utf-8")
+    return path
+
+
+def test_loads_the_slots_in_file_order(tmp_path):
+    inside = {**FULL_PAGE, "id": "photo", "bleed_edges": []}
+    template = load_slots(write_slots(tmp_path, FULL_PAGE, inside))
+    assert template.template_id == "t"
+    assert [s.id for s in template.slots] == ["hero", "photo"]
