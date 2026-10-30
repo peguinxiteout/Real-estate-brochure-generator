@@ -5,6 +5,7 @@ from pathlib import Path
 
 from brochure.contracts.images import ImageTag
 from brochure.contracts.manifest import ImageManifest
+from brochure.contracts.qa import QAIssue
 from brochure.contracts.spec import BrochureSpec, PageSpec, SlotFill
 from brochure.contracts.state import PipelineState
 from brochure.pipeline.agents import Agents, RenderResult
@@ -38,7 +39,19 @@ def load_sample_data(root: Path = REPO_ROOT) -> SampleData:
     )
 
 
-def stub_agents(data: SampleData | None = None) -> Agents:
+class ScriptedQA:
+    """QA stub. issues_per_round[n] is what the critic reports on its (n+1)th pass; later passes report nothing."""
+
+    def __init__(self, issues_per_round: list[list[QAIssue]] | None = None):
+        self.issues_per_round = issues_per_round or []
+
+    def __call__(self, state: PipelineState, llm) -> list[QAIssue]:
+        if state.qa_round < len(self.issues_per_round):
+            return list(self.issues_per_round[state.qa_round])
+        return []
+
+
+def stub_agents(data: SampleData | None = None, qa=None) -> Agents:
     data = data or load_sample_data()
 
     def vision(state: PipelineState, llm) -> list[ImageTag]:
@@ -89,4 +102,4 @@ def stub_agents(data: SampleData | None = None) -> Agents:
             page_images=[f"FAKE-NOT-RENDERED/page-{n}.png" for n in range(1, pages + 1)],
         )
 
-    return Agents(brief=None, vision=vision, copywriter=copywriter, layout=layout, renderer=renderer, qa=None, export=None)
+    return Agents(brief=None, vision=vision, copywriter=copywriter, layout=layout, renderer=renderer, qa=qa or ScriptedQA(), export=None)

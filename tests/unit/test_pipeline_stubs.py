@@ -5,7 +5,8 @@ import pytest
 
 from brochure.contracts.images import ImageTag
 from brochure.llm import FakeLLM
-from brochure.pipeline.stubs import load_sample_data, stub_agents
+from brochure.contracts.qa import QAIssue
+from brochure.pipeline.stubs import ScriptedQA, load_sample_data, stub_agents
 from tests.support import ROOT, sample_state
 
 
@@ -108,3 +109,20 @@ def test_renderer_stub_returns_8_clearly_fake_page_paths_and_creates_no_files(ll
     assert all("FAKE" in p and p.endswith(".png") for p in result.page_images)
     assert len(set(result.page_images)) == 8
     assert list(tmp_path.iterdir()) == []
+
+
+def issue(route_to, note="problem"):
+    return QAIssue(check="stub", page=1, severity="error", note=note, route_to=route_to)
+
+
+def test_qa_stub_reports_nothing_by_default(llm):
+    assert stub_agents().qa(sample_state(), llm) == []
+
+
+def test_qa_stub_reports_the_scripted_issues_for_the_current_round(llm):
+    script = [[issue("copywriter", "first")], [issue("layout", "second"), issue("none", "third")]]
+    qa = stub_agents(qa=ScriptedQA(script)).qa
+    state = sample_state()
+    assert [i.note for i in qa(state.model_copy(update={"qa_round": 0}), llm)] == ["first"]
+    assert [i.note for i in qa(state.model_copy(update={"qa_round": 1}), llm)] == ["second", "third"]
+    assert qa(state.model_copy(update={"qa_round": 2}), llm) == []
