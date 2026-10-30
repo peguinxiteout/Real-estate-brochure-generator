@@ -29,3 +29,10 @@ def test_page_is_optional_for_whole_brochure_issues():
 def test_invalid_values_are_rejected(field, value):
     with pytest.raises(ValidationError):
         QAIssue.model_validate(issue_data(**{field: value}))
+
+
+def test_route_to_is_required_so_every_issue_says_who_fixes_it():
+    data = issue_data()
+    del data["route_to"]
+    with pytest.raises(ValidationError, match="route_to"):
+        QAIssue.model_validate(data)

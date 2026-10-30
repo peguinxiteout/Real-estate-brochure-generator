@@ -11,4 +11,4 @@ class QAIssue(ContractModel):
     page: int | None = Field(default=None, ge=1)
     severity: Literal["error", "warning"]
     note: str
-    route_to: Literal["copywriter", "layout", "none"] = "none"
+    route_to: Literal["copywriter", "layout", "none"]
