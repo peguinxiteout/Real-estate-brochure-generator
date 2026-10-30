@@ -1,5 +1,5 @@
 """BrochureSpec: the filled-in brochure that the renderer consumes."""
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 
 from brochure.contracts.base import ContractModel
 from brochure.contracts.qa import QAIssue
@@ -11,6 +11,13 @@ class SlotFill(ContractModel):
     text: str | None = None
     image_path: str | None = None
     qr_data: str | None = None
+
+    @model_validator(mode="after")
+    def _exactly_one_value(self) -> "SlotFill":
+        filled = [v for v in (self.text, self.image_path, self.qr_data) if v is not None]
+        if len(filled) != 1:
+            raise ValueError("a slot fill must set exactly one of text, image_path, qr_data")
+        return self
 
 
 class PageSpec(ContractModel):

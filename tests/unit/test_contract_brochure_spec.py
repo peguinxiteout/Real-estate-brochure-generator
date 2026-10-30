@@ -46,3 +46,15 @@ def test_page_count_not_a_multiple_of_four_is_rejected(count):
 @pytest.mark.parametrize("count", [4, 8, 12])
 def test_page_count_multiple_of_four_is_accepted(count):
     assert len(BrochureSpec.model_validate(spec_data(page_count=count)).pages) == count
+
+
+@pytest.mark.parametrize(
+    "fill",
+    [{}, {"text": "a", "image_path": "b.jpg"}, {"image_path": "b.jpg", "qr_data": "https://example.com"}],
+    ids=["nothing", "text+image", "image+qr"],
+)
+def test_slot_fill_must_set_exactly_one_value(fill):
+    data = spec_data()
+    data["pages"][0]["slots"]["title"] = fill
+    with pytest.raises(ValidationError, match="exactly one"):
+        BrochureSpec.model_validate(data)
