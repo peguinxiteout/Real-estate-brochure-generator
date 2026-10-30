@@ -38,3 +38,9 @@ def test_bleed_is_added_only_on_the_listed_edges(tmp_path):
     slot = load_slots(write_slots(tmp_path, banner)).get("banner")
     assert (slot.bleed_width_mm, slot.bleed_height_mm) == (216, 123)
     assert slot.min_px == (2552, 1453)
+
+
+def test_bleed_comes_from_the_print_config_not_a_constant(tmp_path):
+    thick = PrintConfig(bleed_mm=5, target_dpi=300)
+    hero = load_slots(write_slots(tmp_path, FULL_PAGE), thick).get("hero")
+    assert hero.min_px == (2599, 3626)  # 220 x 307 mm
