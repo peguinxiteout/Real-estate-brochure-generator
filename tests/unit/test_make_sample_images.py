@@ -31,3 +31,24 @@ def test_writes_one_file_per_manifest_entry(tool, manifest, tmp_path):
     written = tool.generate_images(manifest, tmp_path / "images")
     assert sorted(p.name for p in written) == sorted(e.filename for e in manifest.images)
     assert all(p.is_file() for p in written)
+
+
+def test_each_image_has_exactly_the_manifest_pixel_size(tool, manifest, tmp_path):
+    tool.generate_images(manifest, tmp_path)
+    for e in manifest.images:
+        with Image.open(tmp_path / e.filename) as img:
+            assert img.size == (e.width_px, e.height_px), e.filename
+
+
+def test_files_are_jpeg_and_small(tool, manifest, tmp_path):
+    written = tool.generate_images(manifest, tmp_path)
+    for path in written:
+        with Image.open(path) as img:
+            assert img.format == "JPEG"
+    assert sum(p.stat().st_size for p in written) < 3_000_000
+
+
+def test_output_is_deterministic(tool, manifest, tmp_path):
+    first = tool.generate_images(manifest, tmp_path / "a")
+    second = tool.generate_images(manifest, tmp_path / "b")
+    assert [p.read_bytes() for p in first] == [p.read_bytes() for p in second]
