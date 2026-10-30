@@ -70,7 +70,7 @@ def test_exactly_three_images_fail_the_dpi_rule_and_one_warns(manifest, template
 
 @pytest.fixture(scope="module")
 def image_tags():
-    return [ImageTag.model_validate(t) for t in read_json(ROOT / "tests" / "fixtures" / "image_tags.json")]
+    return [ImageTag.model_validate(t) for t in read_json(ROOT / "sample" / "image_tags.json")]
 
 
 def test_image_tag_fixture_matches_the_manifest_size_kind_and_filename(manifest, image_tags):

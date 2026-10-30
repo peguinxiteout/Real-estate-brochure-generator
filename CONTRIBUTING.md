@@ -98,6 +98,6 @@ A test fails, and says this command, if `contracts/json/` is out of date.
 ## Sample project
 
 `sample/` holds a fictional project ("Aurelia Heights"): `brand_kit.json`, `brief.json`, `images.json` (the image
-manifest) and `logo.svg`. `tests/fixtures/image_tags.json` holds the image tags for the 12 images, for code that needs
+manifest) and `logo.svg`. `sample/image_tags.json` holds the image tags for the 12 images, for code that needs
 tags before the vision step exists. The sample deliberately contains three images below 250 DPI and one in the warn
 band for their intended slot; a test pins which.

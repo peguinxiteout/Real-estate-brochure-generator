@@ -23,7 +23,7 @@ def test_whole_sample_project_validates_and_a_pipeline_state_can_be_built_from_i
     kit = BrandKit.model_validate(read_json(ROOT / "sample" / "brand_kit.json"))
     brief = Brief.model_validate(read_json(ROOT / "sample" / "brief.json"))
     manifest = ImageManifest.model_validate(read_json(ROOT / "sample" / "images.json"))
-    tags = [ImageTag.model_validate(t) for t in read_json(ROOT / "tests" / "fixtures" / "image_tags.json")]
+    tags = [ImageTag.model_validate(t) for t in read_json(ROOT / "sample" / "image_tags.json")]
     template = load_slots(ROOT / "templates" / "classic-8pp" / "slots.json")
 
     images = tmp_path / "images"
