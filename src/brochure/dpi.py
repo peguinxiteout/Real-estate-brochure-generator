@@ -15,4 +15,6 @@ def min_pixels(size_mm: float, dpi: int) -> int:
 
 
 def effective_dpi(width_px: int, height_px: int, slot_width_mm: float, slot_height_mm: float) -> float:
-    return float(Fraction(width_px) / (_exact(slot_width_mm) / MM_PER_INCH))
+    across = Fraction(width_px) / (_exact(slot_width_mm) / MM_PER_INCH)
+    down = Fraction(height_px) / (_exact(slot_height_mm) / MM_PER_INCH)
+    return float(min(across, down))
