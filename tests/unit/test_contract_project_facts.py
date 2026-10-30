@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from brochure.contracts.project import ProjectFacts
+from brochure.contracts.project import Brief, ProjectFacts
 
 
 def facts_data(**overrides):
@@ -43,3 +43,11 @@ def test_configuration_carpet_area_must_be_positive(area):
     bad = [{"label": "2 BHK", "carpet_area_sqft": area}]
     with pytest.raises(ValidationError):
         ProjectFacts.model_validate(facts_data(configurations=bad))
+
+
+def test_brief_is_project_facts_plus_a_short_prompt():
+    brief = Brief.model_validate(
+        {"project_facts": facts_data(), "prompt": "Premium 2 and 3 BHK homes for upper-middle-class families."}
+    )
+    assert brief.project_facts.name == "Aurelia Heights"
+    assert brief.prompt.startswith("Premium")

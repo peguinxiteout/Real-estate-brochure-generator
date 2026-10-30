@@ -35,3 +35,10 @@ class ProjectFacts(ContractModel):
     landmarks: list[Landmark] = []
     possession: str
     tone_notes: str = ""
+
+
+class Brief(ContractModel):
+    """The user's starting point: structured facts plus a free-text prompt."""
+
+    project_facts: ProjectFacts
+    prompt: str
