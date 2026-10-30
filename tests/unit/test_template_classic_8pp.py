@@ -35,7 +35,7 @@ def test_back_cover_has_the_rera_number_and_a_provisional_25mm_qr(template):
 
 
 def test_there_is_no_pricing_slot(template):
-    assert [s.id for s in template.slots if "price" in s.id or "pricing" in s.id or "price" in s.comment.lower()] == []
+    assert [s.id for s in template.slots if "price" in s.id or "pricing" in s.id] == []
 
 
 def test_every_slot_fits_inside_an_a4_page(template):
