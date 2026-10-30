@@ -2,7 +2,7 @@
 from dataclasses import replace
 
 
-from brochure.pipeline import ScriptedQA, load_sample_data, stub_agents
+from brochure.pipeline import ScriptedQA, load_sample_data, sqlite_checkpointer, stub_agents
 from tests.support import Run, counted, qa_issue, sample_state
 
 
@@ -160,3 +160,23 @@ def test_a_spy_agent_replaces_one_stub_and_the_other_stubs_still_work():
     assert cover_title.text == "SPY"
     assert (calls["layout"], calls["renderer"], calls["qa"]) == (1, 1, 1)
     assert len(run.state.spec.pages) == 8
+
+
+def test_a_run_paused_at_review_resumes_from_sqlite_in_a_new_graph_and_connection(tmp_path):
+    database = tmp_path / "pipeline.sqlite"
+
+    first_saver = sqlite_checkpointer(database)
+    first = Run(checkpointer=first_saver, thread_id="aurelia")
+    first.start()
+    assert first.paused_at == ("human_review",)
+    first_saver.conn.close()
+
+    second_saver = sqlite_checkpointer(database)
+    second = Run(checkpointer=second_saver, thread_id="aurelia")  # new graph object, new connection, same file
+    assert second.paused_at == ("human_review",)
+    assert len(second.state.spec.pages) == 8
+    second.resume("approved")
+    assert second.paused_at == ()
+    assert second.state.approval_status == "approved"
+    second_saver.conn.close()
+    assert first.llm.calls == [] and second.llm.calls == []
