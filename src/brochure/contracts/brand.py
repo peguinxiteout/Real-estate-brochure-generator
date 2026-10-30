@@ -1,10 +1,12 @@
 """Brand kit: the developer's identity."""
+from pydantic import Field
+
 from brochure.contracts.base import ContractModel
 
 
 class BrandColor(ContractModel):
     name: str
-    hex: str
+    hex: str = Field(pattern=r"^#[0-9A-Fa-f]{6}$")
     cmyk: tuple[int, int, int, int] | None = None
 
 
