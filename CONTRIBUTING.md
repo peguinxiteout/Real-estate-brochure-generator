@@ -53,6 +53,16 @@ canned answers keyed by task and records every call.
 - Never delete or weaken a test to get green without saying so in the commit message or PR.
 - Commit after each green step, with a plain message describing the change.
 
+## Branching and merging
+
+- `master` is always green and is never committed to directly.
+- One branch per feature or bug: `feature/<short-name>` or `fix/<short-name>`, cut from the latest `master`.
+- Commit after each green TDD cycle, as described above.
+- Before merging: merge `master` into your branch, run the full test suite, and make sure it passes.
+- Merge into `master` with a merge commit (`git merge --no-ff`), not a squash, so the per-cycle history is kept. Delete the branch after merging.
+- A change to the shared contracts needs review by the other developer before it merges. The shared contracts are `src/brochure/contracts/`, `contracts/json/` and `templates/*/slots.json`. If you change a model, regenerate `contracts/json/` with `tools/export_schemas.py` in the same branch.
+- Each feature branch adds its own entry at the top of `docs/CHANGELOG.md`.
+
 ## Print numbers live in one place
 
 `src/brochure/print_config.py` holds the A4 size, the bleed (3 mm) and the DPI thresholds (pass at 300, warn from 250).
