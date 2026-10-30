@@ -1,5 +1,6 @@
 """Pixel and DPI maths for print slots."""
 import math
+from enum import StrEnum
 from fractions import Fraction
 
 MM_PER_INCH = Fraction("25.4")
@@ -18,3 +19,13 @@ def effective_dpi(width_px: int, height_px: int, slot_width_mm: float, slot_heig
     across = Fraction(width_px) / (_exact(slot_width_mm) / MM_PER_INCH)
     down = Fraction(height_px) / (_exact(slot_height_mm) / MM_PER_INCH)
     return float(min(across, down))
+
+
+class DpiStatus(StrEnum):
+    PASS = "pass"
+    WARN = "warn"
+    FAIL = "fail"
+
+
+def classify_dpi(dpi: float) -> DpiStatus:
+    return DpiStatus.PASS
