@@ -28,4 +28,8 @@ class DpiStatus(StrEnum):
 
 
 def classify_dpi(dpi: float) -> DpiStatus:
-    return DpiStatus.PASS if dpi >= 300 else DpiStatus.WARN
+    if dpi >= 300:
+        return DpiStatus.PASS
+    if dpi >= 250:
+        return DpiStatus.WARN
+    return DpiStatus.FAIL
