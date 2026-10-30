@@ -30,6 +30,8 @@ Generate the sample images once (they are git-ignored):
 ~/.venvs/brochure/bin/python -m pytest -rs                   # also print the reason for every skip
 ```
 
+CI (`.github/workflows/tests.yml`) runs the unit suite (`python -m pytest -m "not integration"`) on every push to a `feature/**` or `fix/**` branch and on every pull request into `master`. A failing `tests` check blocks a merge.
+
 Markers (registered in `pyproject.toml`; unknown markers are an error):
 
 | Marker | Meaning |
