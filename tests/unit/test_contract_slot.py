@@ -30,3 +30,18 @@ def test_bleed_edges_default_to_none_for_slots_inside_the_trim():
     data = slot_data()
     del data["bleed_edges"]
     assert Slot.model_validate(data).bleed_edges == []
+
+
+def test_min_px_stored_in_the_file_is_rejected_because_the_loader_computes_it():
+    with pytest.raises(ValidationError, match="min_px"):
+        Slot.model_validate(slot_data(min_px=[2552, 3579]))
+
+
+def test_text_slot_needs_a_char_budget():
+    with pytest.raises(ValidationError, match="char_budget"):
+        Slot.model_validate(slot_data(id="title", type="text", bleed_edges=[]))
+
+
+def test_only_text_slots_may_have_a_char_budget():
+    with pytest.raises(ValidationError, match="char_budget"):
+        Slot.model_validate(slot_data(char_budget=40))
