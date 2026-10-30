@@ -34,3 +34,8 @@ def test_focal_point_outside_0_to_1_is_rejected():
 def test_zero_width_px_is_rejected():
     with pytest.raises(ValidationError):
         ImageTag.model_validate(tag_data(width_px=0))
+
+
+def test_zero_height_px_is_rejected():
+    with pytest.raises(ValidationError):
+        ImageTag.model_validate(tag_data(height_px=0))

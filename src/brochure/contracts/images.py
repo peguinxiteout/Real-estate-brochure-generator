@@ -18,7 +18,7 @@ class ImageTag(ContractModel):
     kind: Literal["photo", "render", "floor_plan", "map"]
     subject: str
     width_px: int = Field(gt=0)
-    height_px: int
+    height_px: int = Field(gt=0)
     quality: Literal["good", "fair", "poor"]
     features: list[str] = []
     focal_point: FocalPoint
