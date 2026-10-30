@@ -37,15 +37,15 @@
     },
     {
       "filename": "amenity_clubhouse.jpg",
-      "width_px": 1100,
-      "height_px": 750,
+      "width_px": 1000,
+      "height_px": 682,
       "kind": "render",
       "intended_slot": "amenity_img_b"
     },
     {
       "filename": "amenity_gym.jpg",
-      "width_px": 1100,
-      "height_px": 750,
+      "width_px": 800,
+      "height_px": 545,
       "kind": "photo",
       "intended_slot": "amenity_img_c"
     },
@@ -58,8 +58,8 @@
     },
     {
       "filename": "floorplan_3bhk.jpg",
-      "width_px": 1100,
-      "height_px": 1100,
+      "width_px": 720,
+      "height_px": 720,
       "kind": "floor_plan",
       "intended_slot": "plan_img_b"
     },
@@ -79,8 +79,8 @@
     },
     {
       "filename": "developer_office.jpg",
-      "width_px": 1100,
-      "height_px": 780,
+      "width_px": 640,
+      "height_px": 450,
       "kind": "photo",
       "intended_slot": "about_img"
     }

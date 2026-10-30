@@ -7,6 +7,7 @@ import pytest
 from brochure.contracts.brand import BrandKit
 from brochure.contracts.manifest import ImageManifest
 from brochure.contracts.project import Brief
+from brochure.dpi import classify_dpi, effective_dpi
 from brochure.slots import load_slots
 
 ROOT = Path(__file__).parents[2]
@@ -47,3 +48,19 @@ def test_manifest_has_12_images_each_aimed_at_a_different_image_slot_of_the_temp
     assert len(set(targets)) == 12
     assert set(targets) <= image_slots
     assert len({e.filename for e in manifest.images}) == 12
+
+
+def dpi_by_file(manifest, template):
+    result = {}
+    for e in manifest.images:
+        slot = template.get(e.intended_slot)
+        result[e.filename] = effective_dpi(e.width_px, e.height_px, slot.bleed_width_mm, slot.bleed_height_mm)
+    return result
+
+
+def test_exactly_three_images_fail_the_dpi_rule_and_one_warns(manifest, template):
+    status = {name: classify_dpi(dpi) for name, dpi in dpi_by_file(manifest, template).items()}
+    assert sorted(n for n, s in status.items() if s == "fail") == [
+        "amenity_gym.jpg", "developer_office.jpg", "floorplan_3bhk.jpg",
+    ]
+    assert [n for n, s in status.items() if s == "warn"] == ["amenity_clubhouse.jpg"]
