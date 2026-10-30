@@ -1,0 +1,141 @@
+{
+  "$defs": {
+    "BrandColor": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "hex": {
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "title": "Hex",
+          "type": "string"
+        },
+        "cmyk": {
+          "anyOf": [
+            {
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cmyk"
+        }
+      },
+      "required": [
+        "name",
+        "hex"
+      ],
+      "title": "BrandColor",
+      "type": "object"
+    },
+    "BrandFonts": {
+      "additionalProperties": false,
+      "properties": {
+        "heading": {
+          "title": "Heading",
+          "type": "string"
+        },
+        "body": {
+          "title": "Body",
+          "type": "string"
+        }
+      },
+      "required": [
+        "heading",
+        "body"
+      ],
+      "title": "BrandFonts",
+      "type": "object"
+    },
+    "Contact": {
+      "additionalProperties": false,
+      "properties": {
+        "phone": {
+          "default": "",
+          "title": "Phone",
+          "type": "string"
+        },
+        "email": {
+          "default": "",
+          "title": "Email",
+          "type": "string"
+        },
+        "website": {
+          "default": "",
+          "title": "Website",
+          "type": "string"
+        },
+        "address": {
+          "default": "",
+          "title": "Address",
+          "type": "string"
+        }
+      },
+      "title": "Contact",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "company_name": {
+      "title": "Company Name",
+      "type": "string"
+    },
+    "logo_path": {
+      "title": "Logo Path",
+      "type": "string"
+    },
+    "colors": {
+      "items": {
+        "$ref": "#/$defs/BrandColor"
+      },
+      "title": "Colors",
+      "type": "array"
+    },
+    "fonts": {
+      "$ref": "#/$defs/BrandFonts"
+    },
+    "about_text": {
+      "title": "About Text",
+      "type": "string"
+    },
+    "contact": {
+      "$ref": "#/$defs/Contact"
+    },
+    "disclaimer": {
+      "title": "Disclaimer",
+      "type": "string"
+    }
+  },
+  "required": [
+    "company_name",
+    "logo_path",
+    "colors",
+    "fonts",
+    "about_text",
+    "contact",
+    "disclaimer"
+  ],
+  "title": "BrandKit",
+  "type": "object"
+}

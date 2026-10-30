@@ -1,0 +1,154 @@
+{
+  "$defs": {
+    "PageSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "layout_id": {
+          "title": "Layout Id",
+          "type": "string"
+        },
+        "slots": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SlotFill"
+          },
+          "title": "Slots",
+          "type": "object"
+        }
+      },
+      "required": [
+        "layout_id",
+        "slots"
+      ],
+      "title": "PageSpec",
+      "type": "object"
+    },
+    "QAIssue": {
+      "additionalProperties": false,
+      "properties": {
+        "check": {
+          "title": "Check",
+          "type": "string"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "severity": {
+          "enum": [
+            "error",
+            "warning"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "note": {
+          "title": "Note",
+          "type": "string"
+        },
+        "route_to": {
+          "default": "none",
+          "enum": [
+            "copywriter",
+            "layout",
+            "none"
+          ],
+          "title": "Route To",
+          "type": "string"
+        }
+      },
+      "required": [
+        "check",
+        "severity",
+        "note"
+      ],
+      "title": "QAIssue",
+      "type": "object"
+    },
+    "SlotFill": {
+      "additionalProperties": false,
+      "description": "The content for one slot: text, an image path, or QR payload.",
+      "properties": {
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text"
+        },
+        "image_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Image Path"
+        },
+        "qr_data": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Qr Data"
+        }
+      },
+      "title": "SlotFill",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "template_id": {
+      "title": "Template Id",
+      "type": "string"
+    },
+    "pages": {
+      "items": {
+        "$ref": "#/$defs/PageSpec"
+      },
+      "title": "Pages",
+      "type": "array"
+    },
+    "qa_warnings": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/QAIssue"
+      },
+      "title": "Qa Warnings",
+      "type": "array"
+    },
+    "version": {
+      "default": 1,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "template_id",
+    "pages"
+  ],
+  "title": "BrochureSpec",
+  "type": "object"
+}

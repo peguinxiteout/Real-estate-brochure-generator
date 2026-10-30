@@ -1,0 +1,90 @@
+{
+  "$defs": {
+    "FocalPoint": {
+      "additionalProperties": false,
+      "description": "Where the subject sits in the image, as fractions of width (x) and height (y).",
+      "properties": {
+        "x": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "title": "FocalPoint",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "path": {
+      "title": "Path",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "photo",
+        "render",
+        "floor_plan",
+        "map"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "subject": {
+      "title": "Subject",
+      "type": "string"
+    },
+    "width_px": {
+      "exclusiveMinimum": 0,
+      "title": "Width Px",
+      "type": "integer"
+    },
+    "height_px": {
+      "exclusiveMinimum": 0,
+      "title": "Height Px",
+      "type": "integer"
+    },
+    "quality": {
+      "enum": [
+        "good",
+        "fair",
+        "poor"
+      ],
+      "title": "Quality",
+      "type": "string"
+    },
+    "features": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Features",
+      "type": "array"
+    },
+    "focal_point": {
+      "$ref": "#/$defs/FocalPoint"
+    }
+  },
+  "required": [
+    "path",
+    "kind",
+    "subject",
+    "width_px",
+    "height_px",
+    "quality",
+    "focal_point"
+  ],
+  "title": "ImageTag",
+  "type": "object"
+}

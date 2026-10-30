@@ -42,3 +42,18 @@ def test_export_script_writes_schemas_to_the_given_folder(tmp_path):
     )
     assert result.returncode == 0, result.stderr
     assert sorted(p.name for p in tmp_path.glob("*.json")) == sorted(EXPECTED)
+
+
+REGENERATE = "python tools/export_schemas.py"
+COMMITTED = Path(__file__).parents[2] / "contracts" / "json"
+
+
+def test_committed_schemas_match_the_models():
+    expected = schema_files()
+    committed = {p.name: p.read_text(encoding="utf-8") for p in COMMITTED.glob("*.json")} if COMMITTED.is_dir() else {}
+    stale = sorted(n for n in expected if committed.get(n) != expected[n])
+    extra = sorted(set(committed) - set(expected))
+    assert not stale and not extra, (
+        f"contracts/json/ is out of date (differs or missing: {stale}; no longer a model: {extra}). "
+        f"Regenerate and commit with: {REGENERATE}"
+    )

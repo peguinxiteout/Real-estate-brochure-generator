@@ -1,0 +1,51 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "check": {
+      "title": "Check",
+      "type": "string"
+    },
+    "page": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Page"
+    },
+    "severity": {
+      "enum": [
+        "error",
+        "warning"
+      ],
+      "title": "Severity",
+      "type": "string"
+    },
+    "note": {
+      "title": "Note",
+      "type": "string"
+    },
+    "route_to": {
+      "default": "none",
+      "enum": [
+        "copywriter",
+        "layout",
+        "none"
+      ],
+      "title": "Route To",
+      "type": "string"
+    }
+  },
+  "required": [
+    "check",
+    "severity",
+    "note"
+  ],
+  "title": "QAIssue",
+  "type": "object"
+}

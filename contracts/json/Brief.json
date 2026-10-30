@@ -1,0 +1,151 @@
+{
+  "$defs": {
+    "Configuration": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "carpet_area_sqft": {
+          "exclusiveMinimum": 0,
+          "title": "Carpet Area Sqft",
+          "type": "number"
+        }
+      },
+      "required": [
+        "label",
+        "carpet_area_sqft"
+      ],
+      "title": "Configuration",
+      "type": "object"
+    },
+    "Landmark": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "distance_km": {
+          "title": "Distance Km",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "distance_km"
+      ],
+      "title": "Landmark",
+      "type": "object"
+    },
+    "ProjectFacts": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "rera_number": {
+          "minLength": 1,
+          "title": "Rera Number",
+          "type": "string"
+        },
+        "rera_state": {
+          "title": "Rera State",
+          "type": "string"
+        },
+        "location": {
+          "title": "Location",
+          "type": "string"
+        },
+        "configurations": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Configuration"
+          },
+          "title": "Configurations",
+          "type": "array"
+        },
+        "amenities": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Amenities",
+          "type": "array"
+        },
+        "specifications": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Specification"
+          },
+          "title": "Specifications",
+          "type": "array"
+        },
+        "landmarks": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Landmark"
+          },
+          "title": "Landmarks",
+          "type": "array"
+        },
+        "possession": {
+          "title": "Possession",
+          "type": "string"
+        },
+        "tone_notes": {
+          "default": "",
+          "title": "Tone Notes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "rera_number",
+        "rera_state",
+        "location",
+        "possession"
+      ],
+      "title": "ProjectFacts",
+      "type": "object"
+    },
+    "Specification": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "title": "Category",
+          "type": "string"
+        },
+        "detail": {
+          "title": "Detail",
+          "type": "string"
+        }
+      },
+      "required": [
+        "category",
+        "detail"
+      ],
+      "title": "Specification",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The user's starting point: structured facts plus a free-text prompt.",
+  "properties": {
+    "project_facts": {
+      "$ref": "#/$defs/ProjectFacts"
+    },
+    "prompt": {
+      "title": "Prompt",
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_facts",
+    "prompt"
+  ],
+  "title": "Brief",
+  "type": "object"
+}

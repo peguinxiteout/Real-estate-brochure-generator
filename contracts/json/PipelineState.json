@@ -1,0 +1,594 @@
+{
+  "$defs": {
+    "BrandColor": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "hex": {
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "title": "Hex",
+          "type": "string"
+        },
+        "cmyk": {
+          "anyOf": [
+            {
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cmyk"
+        }
+      },
+      "required": [
+        "name",
+        "hex"
+      ],
+      "title": "BrandColor",
+      "type": "object"
+    },
+    "BrandFonts": {
+      "additionalProperties": false,
+      "properties": {
+        "heading": {
+          "title": "Heading",
+          "type": "string"
+        },
+        "body": {
+          "title": "Body",
+          "type": "string"
+        }
+      },
+      "required": [
+        "heading",
+        "body"
+      ],
+      "title": "BrandFonts",
+      "type": "object"
+    },
+    "BrandKit": {
+      "additionalProperties": false,
+      "properties": {
+        "company_name": {
+          "title": "Company Name",
+          "type": "string"
+        },
+        "logo_path": {
+          "title": "Logo Path",
+          "type": "string"
+        },
+        "colors": {
+          "items": {
+            "$ref": "#/$defs/BrandColor"
+          },
+          "title": "Colors",
+          "type": "array"
+        },
+        "fonts": {
+          "$ref": "#/$defs/BrandFonts"
+        },
+        "about_text": {
+          "title": "About Text",
+          "type": "string"
+        },
+        "contact": {
+          "$ref": "#/$defs/Contact"
+        },
+        "disclaimer": {
+          "title": "Disclaimer",
+          "type": "string"
+        }
+      },
+      "required": [
+        "company_name",
+        "logo_path",
+        "colors",
+        "fonts",
+        "about_text",
+        "contact",
+        "disclaimer"
+      ],
+      "title": "BrandKit",
+      "type": "object"
+    },
+    "BrochureSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "template_id": {
+          "title": "Template Id",
+          "type": "string"
+        },
+        "pages": {
+          "items": {
+            "$ref": "#/$defs/PageSpec"
+          },
+          "title": "Pages",
+          "type": "array"
+        },
+        "qa_warnings": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/QAIssue"
+          },
+          "title": "Qa Warnings",
+          "type": "array"
+        },
+        "version": {
+          "default": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "template_id",
+        "pages"
+      ],
+      "title": "BrochureSpec",
+      "type": "object"
+    },
+    "Configuration": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "carpet_area_sqft": {
+          "exclusiveMinimum": 0,
+          "title": "Carpet Area Sqft",
+          "type": "number"
+        }
+      },
+      "required": [
+        "label",
+        "carpet_area_sqft"
+      ],
+      "title": "Configuration",
+      "type": "object"
+    },
+    "Contact": {
+      "additionalProperties": false,
+      "properties": {
+        "phone": {
+          "default": "",
+          "title": "Phone",
+          "type": "string"
+        },
+        "email": {
+          "default": "",
+          "title": "Email",
+          "type": "string"
+        },
+        "website": {
+          "default": "",
+          "title": "Website",
+          "type": "string"
+        },
+        "address": {
+          "default": "",
+          "title": "Address",
+          "type": "string"
+        }
+      },
+      "title": "Contact",
+      "type": "object"
+    },
+    "FocalPoint": {
+      "additionalProperties": false,
+      "description": "Where the subject sits in the image, as fractions of width (x) and height (y).",
+      "properties": {
+        "x": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "title": "FocalPoint",
+      "type": "object"
+    },
+    "ImageTag": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "photo",
+            "render",
+            "floor_plan",
+            "map"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "subject": {
+          "title": "Subject",
+          "type": "string"
+        },
+        "width_px": {
+          "exclusiveMinimum": 0,
+          "title": "Width Px",
+          "type": "integer"
+        },
+        "height_px": {
+          "exclusiveMinimum": 0,
+          "title": "Height Px",
+          "type": "integer"
+        },
+        "quality": {
+          "enum": [
+            "good",
+            "fair",
+            "poor"
+          ],
+          "title": "Quality",
+          "type": "string"
+        },
+        "features": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Features",
+          "type": "array"
+        },
+        "focal_point": {
+          "$ref": "#/$defs/FocalPoint"
+        }
+      },
+      "required": [
+        "path",
+        "kind",
+        "subject",
+        "width_px",
+        "height_px",
+        "quality",
+        "focal_point"
+      ],
+      "title": "ImageTag",
+      "type": "object"
+    },
+    "Landmark": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "distance_km": {
+          "title": "Distance Km",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "distance_km"
+      ],
+      "title": "Landmark",
+      "type": "object"
+    },
+    "PageSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "layout_id": {
+          "title": "Layout Id",
+          "type": "string"
+        },
+        "slots": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SlotFill"
+          },
+          "title": "Slots",
+          "type": "object"
+        }
+      },
+      "required": [
+        "layout_id",
+        "slots"
+      ],
+      "title": "PageSpec",
+      "type": "object"
+    },
+    "ProjectFacts": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "rera_number": {
+          "minLength": 1,
+          "title": "Rera Number",
+          "type": "string"
+        },
+        "rera_state": {
+          "title": "Rera State",
+          "type": "string"
+        },
+        "location": {
+          "title": "Location",
+          "type": "string"
+        },
+        "configurations": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Configuration"
+          },
+          "title": "Configurations",
+          "type": "array"
+        },
+        "amenities": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Amenities",
+          "type": "array"
+        },
+        "specifications": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Specification"
+          },
+          "title": "Specifications",
+          "type": "array"
+        },
+        "landmarks": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Landmark"
+          },
+          "title": "Landmarks",
+          "type": "array"
+        },
+        "possession": {
+          "title": "Possession",
+          "type": "string"
+        },
+        "tone_notes": {
+          "default": "",
+          "title": "Tone Notes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "rera_number",
+        "rera_state",
+        "location",
+        "possession"
+      ],
+      "title": "ProjectFacts",
+      "type": "object"
+    },
+    "QAIssue": {
+      "additionalProperties": false,
+      "properties": {
+        "check": {
+          "title": "Check",
+          "type": "string"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "severity": {
+          "enum": [
+            "error",
+            "warning"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "note": {
+          "title": "Note",
+          "type": "string"
+        },
+        "route_to": {
+          "default": "none",
+          "enum": [
+            "copywriter",
+            "layout",
+            "none"
+          ],
+          "title": "Route To",
+          "type": "string"
+        }
+      },
+      "required": [
+        "check",
+        "severity",
+        "note"
+      ],
+      "title": "QAIssue",
+      "type": "object"
+    },
+    "SlotFill": {
+      "additionalProperties": false,
+      "description": "The content for one slot: text, an image path, or QR payload.",
+      "properties": {
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text"
+        },
+        "image_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Image Path"
+        },
+        "qr_data": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Qr Data"
+        }
+      },
+      "title": "SlotFill",
+      "type": "object"
+    },
+    "Specification": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "title": "Category",
+          "type": "string"
+        },
+        "detail": {
+          "title": "Detail",
+          "type": "string"
+        }
+      },
+      "required": [
+        "category",
+        "detail"
+      ],
+      "title": "Specification",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "template_id": {
+      "title": "Template Id",
+      "type": "string"
+    },
+    "brand_kit": {
+      "$ref": "#/$defs/BrandKit"
+    },
+    "project_facts": {
+      "$ref": "#/$defs/ProjectFacts"
+    },
+    "brief_prompt": {
+      "default": "",
+      "title": "Brief Prompt",
+      "type": "string"
+    },
+    "image_dir": {
+      "title": "Image Dir",
+      "type": "string"
+    },
+    "image_tags": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ImageTag"
+      },
+      "title": "Image Tags",
+      "type": "array"
+    },
+    "slot_copy": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {},
+      "title": "Slot Copy",
+      "type": "object"
+    },
+    "spec": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BrochureSpec"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "qa_issues": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/QAIssue"
+      },
+      "title": "Qa Issues",
+      "type": "array"
+    },
+    "qa_round": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Qa Round",
+      "type": "integer"
+    },
+    "approval_status": {
+      "default": "pending",
+      "enum": [
+        "pending",
+        "approved",
+        "changes_requested"
+      ],
+      "title": "Approval Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "template_id",
+    "brand_kit",
+    "project_facts",
+    "image_dir"
+  ],
+  "title": "PipelineState",
+  "type": "object"
+}
