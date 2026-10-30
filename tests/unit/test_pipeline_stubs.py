@@ -82,3 +82,12 @@ def test_layout_stub_uses_the_brand_kit_logo_in_both_logo_slots(llm):
     fills = slot_fills(spec)
     assert fills["cover_logo"].image_path == state.brand_kit.logo_path
     assert fills["back_logo"].image_path == state.brand_kit.logo_path
+
+
+def test_layout_stub_puts_the_copy_in_text_slots_and_the_rera_number_in_its_slot(llm):
+    state, spec = laid_out(llm)
+    fills = slot_fills(spec)
+    text_ids = {s.id for s in text_slots()}
+    assert {i: fills[i].text for i in text_ids} == {i: state.slot_copy[i] for i in text_ids}
+    assert fills["rera_number"].text == state.project_facts.rera_number
+    assert all(len(fills[s.id].text) <= s.char_budget for s in text_slots())

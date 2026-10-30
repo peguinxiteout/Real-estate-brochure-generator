@@ -69,6 +69,10 @@ def stub_agents(data: SampleData | None = None) -> Agents:
             fills[slot.page][slot.id] = empty[slot.type]
             if slot.id in image_for_slot:
                 fills[slot.page][slot.id] = SlotFill(image_path=image_for_slot[slot.id])
+            if slot.type == "text":
+                fills[slot.page][slot.id] = SlotFill(text=state.slot_copy[slot.id])
+            if slot.id == "rera_number":  # a legal fact: it comes from the facts, not from the copy
+                fills[slot.page][slot.id] = SlotFill(text=state.project_facts.rera_number)
             if slot.id in LOGO_SLOTS:
                 fills[slot.page][slot.id] = SlotFill(image_path=state.brand_kit.logo_path)
         pages = [PageSpec(layout_id=f"{state.template_id}-p{n}", slots=fills[n]) for n in sorted(fills)]
