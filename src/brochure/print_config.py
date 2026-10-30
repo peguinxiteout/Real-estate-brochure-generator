@@ -7,8 +7,8 @@ class PrintConfig:
     target_dpi: int = 300
     warn_dpi: int = 250
     bleed_mm: float = 3
-    page_width_mm: float = 0
-    page_height_mm: float = 0
+    page_width_mm: float = 210
+    page_height_mm: float = 297
 
 
 PRINT = PrintConfig()
