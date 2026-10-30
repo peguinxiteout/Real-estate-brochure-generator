@@ -45,11 +45,11 @@ def test_configuration_carpet_area_must_be_positive(area):
         ProjectFacts.model_validate(facts_data(configurations=bad))
 
 
-def test_brief_is_project_facts_plus_a_short_prompt():
+def test_brief_is_a_form_plus_a_short_prompt():
     brief = Brief.model_validate(
-        {"project_facts": facts_data(), "prompt": "Premium 2 and 3 BHK homes for upper-middle-class families."}
+        {"form": facts_data(), "prompt": "Premium 2 and 3 BHK homes for upper-middle-class families."}
     )
-    assert brief.project_facts.name == "Aurelia Heights"
+    assert brief.form.name == "Aurelia Heights"
     assert brief.prompt.startswith("Premium")
 
 

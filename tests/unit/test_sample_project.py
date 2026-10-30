@@ -7,7 +7,7 @@ import pytest
 from brochure.contracts.brand import BrandKit
 from brochure.contracts.images import ImageTag
 from brochure.contracts.manifest import ImageManifest
-from brochure.contracts.project import Brief
+from brochure.contracts.project import Brief, ProjectFacts
 from brochure.dpi import classify_dpi, effective_dpi
 from brochure.slots import load_slots
 
@@ -25,10 +25,11 @@ def test_brand_kit_validates_and_its_logo_exists():
     assert (SAMPLE / kit.logo_path).is_file()
 
 
-def test_brief_validates_and_has_a_non_empty_rera_number():
+def test_brief_validates_and_its_form_is_complete_enough_to_become_project_facts():
     brief = Brief.model_validate(read_json(SAMPLE / "brief.json"))
-    assert brief.project_facts.name == "Aurelia Heights"
-    assert brief.project_facts.rera_number
+    facts = ProjectFacts.model_validate(brief.form.model_dump())
+    assert facts.name == "Aurelia Heights"
+    assert facts.rera_number
     assert len(brief.prompt) < 600
 
 

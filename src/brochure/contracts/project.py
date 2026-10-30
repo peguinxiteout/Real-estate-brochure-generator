@@ -53,7 +53,7 @@ class BriefForm(ContractModel):
 
 
 class Brief(ContractModel):
-    """The user's starting point: structured facts plus a free-text prompt."""
+    """The user's starting point: the form they filled in plus a free-text prompt."""
 
-    project_facts: ProjectFacts
+    form: BriefForm
     prompt: str

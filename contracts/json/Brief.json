@@ -1,5 +1,117 @@
 {
   "$defs": {
+    "BriefForm": {
+      "additionalProperties": false,
+      "description": "What the user filled in on the form: ProjectFacts with every field optional.",
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "rera_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rera Number"
+        },
+        "rera_state": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rera State"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Location"
+        },
+        "configurations": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Configuration"
+          },
+          "title": "Configurations",
+          "type": "array"
+        },
+        "amenities": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Amenities",
+          "type": "array"
+        },
+        "specifications": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Specification"
+          },
+          "title": "Specifications",
+          "type": "array"
+        },
+        "landmarks": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Landmark"
+          },
+          "title": "Landmarks",
+          "type": "array"
+        },
+        "possession": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Possession"
+        },
+        "tone_notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tone Notes"
+        }
+      },
+      "title": "BriefForm",
+      "type": "object"
+    },
     "Configuration": {
       "additionalProperties": false,
       "properties": {
@@ -39,78 +151,6 @@
       "title": "Landmark",
       "type": "object"
     },
-    "ProjectFacts": {
-      "additionalProperties": false,
-      "properties": {
-        "name": {
-          "title": "Name",
-          "type": "string"
-        },
-        "rera_number": {
-          "minLength": 1,
-          "title": "Rera Number",
-          "type": "string"
-        },
-        "rera_state": {
-          "title": "Rera State",
-          "type": "string"
-        },
-        "location": {
-          "title": "Location",
-          "type": "string"
-        },
-        "configurations": {
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/Configuration"
-          },
-          "title": "Configurations",
-          "type": "array"
-        },
-        "amenities": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "title": "Amenities",
-          "type": "array"
-        },
-        "specifications": {
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/Specification"
-          },
-          "title": "Specifications",
-          "type": "array"
-        },
-        "landmarks": {
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/Landmark"
-          },
-          "title": "Landmarks",
-          "type": "array"
-        },
-        "possession": {
-          "title": "Possession",
-          "type": "string"
-        },
-        "tone_notes": {
-          "default": "",
-          "title": "Tone Notes",
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "rera_number",
-        "rera_state",
-        "location",
-        "possession"
-      ],
-      "title": "ProjectFacts",
-      "type": "object"
-    },
     "Specification": {
       "additionalProperties": false,
       "properties": {
@@ -132,10 +172,10 @@
     }
   },
   "additionalProperties": false,
-  "description": "The user's starting point: structured facts plus a free-text prompt.",
+  "description": "The user's starting point: the form they filled in plus a free-text prompt.",
   "properties": {
-    "project_facts": {
-      "$ref": "#/$defs/ProjectFacts"
+    "form": {
+      "$ref": "#/$defs/BriefForm"
     },
     "prompt": {
       "title": "Prompt",
@@ -143,7 +183,7 @@
     }
   },
   "required": [
-    "project_facts",
+    "form",
     "prompt"
   ],
   "title": "Brief",
