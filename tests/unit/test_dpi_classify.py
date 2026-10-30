@@ -7,3 +7,7 @@ def test_exactly_300_dpi_passes():
 
 def test_299_99_dpi_warns():
     assert classify_dpi(299.99) == "warn"
+
+
+def test_exactly_250_dpi_still_warns():
+    assert classify_dpi(250) == "warn"
