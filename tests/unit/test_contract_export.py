@@ -1,4 +1,7 @@
 import json
+import subprocess
+import sys
+from pathlib import Path
 
 from brochure.contracts.export import schema_files, write_schemas
 
@@ -30,3 +33,12 @@ def test_write_schemas_writes_every_file_into_the_folder(tmp_path):
     assert sorted(p.name for p in written) == sorted(EXPECTED)
     for name, text in schema_files().items():
         assert (out / name).read_text(encoding="utf-8") == text
+
+
+def test_export_script_writes_schemas_to_the_given_folder(tmp_path):
+    script = Path(__file__).parents[2] / "tools" / "export_schemas.py"
+    result = subprocess.run(
+        [sys.executable, str(script), "--out", str(tmp_path)], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+    assert sorted(p.name for p in tmp_path.glob("*.json")) == sorted(EXPECTED)
