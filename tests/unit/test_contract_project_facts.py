@@ -30,3 +30,9 @@ def test_valid_project_facts_parse():
     assert facts.configurations[1].carpet_area_sqft == 1090
     assert facts.landmarks[0].distance_km == 1.2
     assert facts.specifications[0].category == "Flooring"
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_blank_rera_number_is_rejected(blank):
+    with pytest.raises(ValidationError):
+        ProjectFacts.model_validate(facts_data(rera_number=blank))
