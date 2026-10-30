@@ -5,8 +5,10 @@ from pathlib import Path
 from brochure.contracts.base import ContractModel
 from brochure.contracts.brand import BrandKit
 from brochure.contracts.images import ImageTag
+from brochure.contracts.manifest import ImageManifest
 from brochure.contracts.project import Brief, ProjectFacts
 from brochure.contracts.qa import QAIssue
+from brochure.contracts.slots import SlotsFile
 from brochure.contracts.spec import BrochureSpec
 from brochure.contracts.state import PipelineState
 
@@ -15,10 +17,12 @@ EXPORTED_MODELS: list[type[ContractModel]] = [
     BrandKit,
     Brief,
     BrochureSpec,
+    ImageManifest,
     ImageTag,
     PipelineState,
     ProjectFacts,
     QAIssue,
+    SlotsFile,
 ]
 
 

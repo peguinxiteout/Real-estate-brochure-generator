@@ -1,0 +1,101 @@
+{
+  "$defs": {
+    "Slot": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "image",
+            "text",
+            "qr"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "page": {
+          "title": "Page",
+          "type": "integer"
+        },
+        "width_mm": {
+          "exclusiveMinimum": 0,
+          "title": "Width Mm",
+          "type": "number"
+        },
+        "height_mm": {
+          "exclusiveMinimum": 0,
+          "title": "Height Mm",
+          "type": "number"
+        },
+        "bleed_edges": {
+          "default": [],
+          "items": {
+            "enum": [
+              "top",
+              "right",
+              "bottom",
+              "left"
+            ],
+            "type": "string"
+          },
+          "title": "Bleed Edges",
+          "type": "array"
+        },
+        "char_budget": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Char Budget"
+        },
+        "comment": {
+          "default": "",
+          "title": "Comment",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "page",
+        "width_mm",
+        "height_mm"
+      ],
+      "title": "Slot",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "template_id": {
+      "title": "Template Id",
+      "type": "string"
+    },
+    "name": {
+      "default": "",
+      "title": "Name",
+      "type": "string"
+    },
+    "slots": {
+      "items": {
+        "$ref": "#/$defs/Slot"
+      },
+      "title": "Slots",
+      "type": "array"
+    }
+  },
+  "required": [
+    "template_id",
+    "slots"
+  ],
+  "title": "SlotsFile",
+  "type": "object"
+}

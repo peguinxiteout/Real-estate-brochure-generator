@@ -1,0 +1,61 @@
+{
+  "$defs": {
+    "ImageManifestEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "filename": {
+          "title": "Filename",
+          "type": "string"
+        },
+        "width_px": {
+          "exclusiveMinimum": 0,
+          "title": "Width Px",
+          "type": "integer"
+        },
+        "height_px": {
+          "exclusiveMinimum": 0,
+          "title": "Height Px",
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "photo",
+            "render",
+            "floor_plan",
+            "map"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "intended_slot": {
+          "title": "Intended Slot",
+          "type": "string"
+        }
+      },
+      "required": [
+        "filename",
+        "width_px",
+        "height_px",
+        "kind",
+        "intended_slot"
+      ],
+      "title": "ImageManifestEntry",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "images": {
+      "items": {
+        "$ref": "#/$defs/ImageManifestEntry"
+      },
+      "title": "Images",
+      "type": "array"
+    }
+  },
+  "required": [
+    "images"
+  ],
+  "title": "ImageManifest",
+  "type": "object"
+}

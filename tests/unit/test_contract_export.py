@@ -9,10 +9,12 @@ EXPECTED = {
     "BrandKit.json",
     "Brief.json",
     "BrochureSpec.json",
+    "ImageManifest.json",
     "ImageTag.json",
     "PipelineState.json",
     "ProjectFacts.json",
     "QAIssue.json",
+    "SlotsFile.json",
 }
 
 
