@@ -9,7 +9,7 @@ from brochure.contracts.base import ContractModel
 class ImageManifestEntry(ContractModel):
     filename: str
     width_px: int = Field(gt=0)
-    height_px: int
+    height_px: int = Field(gt=0)
     kind: Literal["photo", "render", "floor_plan", "map"]
     intended_slot: str
 

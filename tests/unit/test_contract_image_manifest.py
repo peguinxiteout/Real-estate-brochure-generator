@@ -20,3 +20,8 @@ def test_valid_manifest_parses():
 def test_zero_width_px_is_rejected():
     with pytest.raises(ValidationError, match="greater than 0"):
         ImageManifest.model_validate({"images": [entry(width_px=0)]})
+
+
+def test_zero_height_px_is_rejected():
+    with pytest.raises(ValidationError, match="greater than 0"):
+        ImageManifest.model_validate({"images": [entry(height_px=0)]})
