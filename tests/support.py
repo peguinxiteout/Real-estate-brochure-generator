@@ -47,6 +47,11 @@ class Run:
         return self.graph.get_state(self.config).next
 
     @property
+    def interrupt_value(self):
+        """What the run is asking for right now."""
+        return self.graph.get_state(self.config).tasks[0].interrupts[0].value
+
+    @property
     def state(self) -> PipelineState:
         return PipelineState.model_validate(self.graph.get_state(self.config).values)
 

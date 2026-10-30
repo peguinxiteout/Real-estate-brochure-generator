@@ -1,6 +1,7 @@
 """The pipeline graph on stub agents: the whole flow runs with no LLM and no rendering."""
 from dataclasses import replace
 
+
 from brochure.pipeline import ScriptedQA, stub_agents
 from tests.support import Run, counted, qa_issue, sample_state
 
@@ -129,3 +130,14 @@ def test_changes_requested_loops_through_layout_render_and_qa_and_back_to_review
     run.resume("approved")
     assert run.paused_at == ()
     assert (run.state.approval_status, calls["export"]) == ("approved", 1)
+
+
+def test_an_unknown_review_answer_is_asked_again_and_the_run_stays_at_review():
+    run = Run()
+    run.start()
+    run.resume("maybe")
+    assert run.paused_at == ("human_review",)
+    assert "approved" in run.interrupt_value["error"]
+    run.resume("approved")
+    assert run.paused_at == ()
+    assert run.state.approval_status == "approved"
