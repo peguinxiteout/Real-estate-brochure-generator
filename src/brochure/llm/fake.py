@@ -18,4 +18,11 @@ class FakeLLM:
 
     def complete(self, task: str, payload: dict, images: list[Path] | None = None) -> dict:
         self.calls.append(LLMCall(task, copy.deepcopy(payload), [Path(i) for i in images or []]))
+        if task not in self.responses:
+            known = ", ".join(sorted(self.responses)) or "none"
+            raise MissingCannedResponse(f"FakeLLM has no canned response for task {task!r} (it has: {known})")
         return copy.deepcopy(self.responses[task])
+
+
+class MissingCannedResponse(LookupError):
+    pass

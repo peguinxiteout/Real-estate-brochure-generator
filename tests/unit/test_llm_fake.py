@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from brochure.llm import FakeLLM, LLMClient
+from brochure.llm import FakeLLM, LLMClient, MissingCannedResponse
 
 
 def test_returns_the_canned_response_for_the_task():
@@ -19,3 +19,9 @@ def test_records_every_call_with_task_payload_and_images():
         ("vision.tag", {"path": "a.jpg"}, [Path("a.jpg")]),
         ("vision.tag", {"path": "b.jpg"}, []),
     ]
+
+
+def test_missing_task_raises_an_error_naming_the_task_and_what_is_available():
+    llm = FakeLLM({"brief.extract": {}})
+    with pytest.raises(MissingCannedResponse, match=r"layout\.arrange.*brief\.extract"):
+        llm.complete("layout.arrange", {})
