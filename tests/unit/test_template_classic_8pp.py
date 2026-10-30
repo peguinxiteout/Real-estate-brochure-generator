@@ -24,3 +24,20 @@ def test_cover_hero_is_a_full_page_slot_bleeding_on_all_four_edges(template):
     assert sorted(hero.bleed_edges) == ["bottom", "left", "right", "top"]
     assert (hero.width_mm, hero.height_mm) == (PRINT.page_width_mm, PRINT.page_height_mm)
     assert hero.min_px == (2552, 3579)
+
+
+def test_back_cover_has_the_rera_number_and_a_provisional_25mm_qr(template):
+    back = {s.id: s for s in template.slots if s.page == 8}
+    assert back["rera_number"].type == "text"
+    qr = back["rera_qr"]
+    assert (qr.type, qr.width_mm, qr.height_mm) == ("qr", 25, 25)
+    assert "PROVISIONAL" in qr.comment
+
+
+def test_there_is_no_pricing_slot(template):
+    assert [s.id for s in template.slots if "price" in s.id or "pricing" in s.id or "price" in s.comment.lower()] == []
+
+
+def test_every_slot_fits_inside_an_a4_page(template):
+    too_big = [s.id for s in template.slots if s.width_mm > PRINT.page_width_mm or s.height_mm > PRINT.page_height_mm]
+    assert too_big == []
