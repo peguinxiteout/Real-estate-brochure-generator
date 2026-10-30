@@ -34,7 +34,7 @@ def test_weasyprint_not_installed_suggests_pip():
     assert any("pip install weasyprint" in fix for fix in check.fixes)
 
 
-def test_weasyprint_missing_native_libraries_reports_the_real_error_and_the_msys2_fix():
+def test_weasyprint_missing_native_libraries_reports_the_real_error_and_the_msys2_fix(windows):
     check = check_weasyprint(raising(OSError(NATIVE_LIBS_ERROR)))
 
     assert not check.ok

@@ -21,7 +21,12 @@ MSYS2_FIXES = (
     'C:\\msys64\\usr\\bin\\bash.exe -lc "pacman -S --noconfirm mingw-w64-x86_64-pango"',
     "setx WEASYPRINT_DLL_DIRECTORIES C:\\msys64\\mingw64\\bin    (then open a new terminal)",
 )
+APT_PANGO_FIXES = ("sudo apt install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0",)
 GS_DOWNLOAD_FIX = "download the 64-bit installer from https://ghostscript.com/releases/gsdnld.html"
+
+
+def _is_windows() -> bool:
+    return sys.platform == "win32"
 
 
 @dataclass(frozen=True)
@@ -88,7 +93,7 @@ def check_weasyprint(importer=importlib.import_module) -> Check:
     except ModuleNotFoundError as exc:
         return Check("WeasyPrint", False, f"not installed ({_last_line(exc)})", (PIP_FIX,))
     except Exception as exc:  # OSError / ImportError when the Pango libraries cannot be loaded
-        return Check("WeasyPrint", False, _last_line(exc), MSYS2_FIXES)
+        return Check("WeasyPrint", False, _last_line(exc), MSYS2_FIXES if _is_windows() else APT_PANGO_FIXES)
     return Check("WeasyPrint", True, f"version {getattr(module, '__version__', 'unknown')}")
 
 

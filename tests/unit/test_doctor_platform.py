@@ -26,3 +26,9 @@ def test_on_windows_a_missing_ghostscript_is_reported_as_before(windows):
 
     assert check.detail == "not found (looked at GS_BIN, PATH, C:\\Program Files\\gs)"
     assert check.fixes == ("download the 64-bit installer from https://ghostscript.com/releases/gsdnld.html",)
+
+
+def test_on_linux_missing_pango_suggests_apt_not_the_windows_tools(linux):
+    check = check_weasyprint(raising(OSError(NATIVE_LIBS_ERROR)))
+
+    assert check.fixes == ("sudo apt install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0",)
