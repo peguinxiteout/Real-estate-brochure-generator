@@ -21,3 +21,31 @@ def sample_state(*, briefed: bool = True, **form_changes) -> PipelineState:
     return PipelineState(
         template_id="classic-8pp", brand_kit=brand, brief=brief, image_dir="sample/images", project_facts=facts
     )
+
+
+class Run:
+    """One pipeline run: a graph, its thread config, and a FakeLLM that must never be called."""
+
+    def __init__(self, agents=None, checkpointer=None, thread_id="run-1"):
+        from brochure.llm import FakeLLM
+        from brochure.pipeline import build_graph, memory_checkpointer, stub_agents
+
+        self.llm = FakeLLM({})
+        self.graph = build_graph(agents or stub_agents(), checkpointer or memory_checkpointer(), self.llm)
+        self.config = {"configurable": {"thread_id": thread_id}}
+
+    def start(self, state=None):
+        return self.graph.invoke(state or sample_state(briefed=False), self.config)
+
+    def resume(self, value):
+        from langgraph.types import Command
+
+        return self.graph.invoke(Command(resume=value), self.config)
+
+    @property
+    def paused_at(self) -> tuple[str, ...]:
+        return self.graph.get_state(self.config).next
+
+    @property
+    def state(self) -> PipelineState:
+        return PipelineState.model_validate(self.graph.get_state(self.config).values)

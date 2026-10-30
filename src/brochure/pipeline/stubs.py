@@ -8,6 +8,7 @@ from brochure.contracts.manifest import ImageManifest
 from brochure.contracts.qa import QAIssue
 from brochure.contracts.spec import BrochureSpec, PageSpec, SlotFill
 from brochure.contracts.state import PipelineState
+from brochure.pipeline.brief import brief_step
 from brochure.pipeline.agents import Agents, RenderResult
 from brochure.slots import SlotTemplate, load_slots
 
@@ -106,4 +107,4 @@ def stub_agents(data: SampleData | None = None, qa=None) -> Agents:
         """Exports nothing; it only marks the end of an approved run."""
         return None
 
-    return Agents(brief=None, vision=vision, copywriter=copywriter, layout=layout, renderer=renderer, qa=qa or ScriptedQA(), export=export)
+    return Agents(brief=brief_step, vision=vision, copywriter=copywriter, layout=layout, renderer=renderer, qa=qa or ScriptedQA(), export=export)
