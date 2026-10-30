@@ -50,3 +50,14 @@ def test_target_dpi_comes_from_the_print_config(tmp_path):
     draft = PrintConfig(bleed_mm=3, target_dpi=150)
     hero = load_slots(write_slots(tmp_path, FULL_PAGE), draft).get("hero")
     assert hero.min_px == (1276, 1790)  # 216 x 303 mm at 150 DPI
+
+
+def test_only_image_slots_get_min_px(tmp_path):
+    title = {"id": "title", "type": "text", "page": 1, "width_mm": 100, "height_mm": 20, "char_budget": 40}
+    assert load_slots(write_slots(tmp_path, title)).get("title").min_px is None
+
+
+def test_min_px_written_in_the_file_is_an_error(tmp_path):
+    stored = {**FULL_PAGE, "min_px": [2552, 3579]}
+    with pytest.raises(ValidationError, match="min_px"):
+        load_slots(write_slots(tmp_path, stored))
