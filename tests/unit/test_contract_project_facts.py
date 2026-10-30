@@ -81,3 +81,10 @@ def test_a_form_without_rera_number_is_valid_but_cannot_become_project_facts():
     assert form.rera_number is None
     with pytest.raises(ValidationError, match="rera_number"):
         ProjectFacts.model_validate(form.model_dump())
+
+
+def test_tone_notes_are_optional_all_the_way_through_conversion():
+    data = facts_data()
+    del data["tone_notes"]
+    facts = ProjectFacts.model_validate(BriefForm.model_validate(data).model_dump())
+    assert facts.tone_notes == ""

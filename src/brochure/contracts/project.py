@@ -49,7 +49,7 @@ class BriefForm(ContractModel):
     specifications: list[Specification] = []
     landmarks: list[Landmark] = []
     possession: str | None = None
-    tone_notes: str | None = None
+    tone_notes: str = ""
 
 
 class Brief(ContractModel):
