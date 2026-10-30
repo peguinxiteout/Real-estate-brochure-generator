@@ -28,6 +28,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 # -ra prints a summary line (with the reason) for every skipped test, so a skip is never silent.
 addopts = "-ra --strict-markers"
 markers = [
