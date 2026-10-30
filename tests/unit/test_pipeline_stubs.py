@@ -34,3 +34,12 @@ def test_copywriter_stub_writes_every_text_slot_within_its_char_budget(llm):
     assert too_long == {}
     assert all(copy[s.id].strip() for s in slots)
     assert llm.calls == []
+
+
+def test_stub_copy_file_only_names_text_slots_and_fits_their_budgets():
+    data = load_sample_data()
+    budgets = {s.id: s.char_budget for s in text_slots()}
+    assert data.copy, "sample/stub_copy.json is empty"
+    assert set(data.copy) <= set(budgets)
+    assert all(isinstance(v, str) and v.strip() for v in data.copy.values())
+    assert {k: len(v) for k, v in data.copy.items() if len(v) > budgets[k]} == {}
