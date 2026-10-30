@@ -13,7 +13,7 @@ class Slot(ContractModel):
     type: Literal["image", "text", "qr"]
     page: int
     width_mm: float = Field(gt=0)
-    height_mm: float
+    height_mm: float = Field(gt=0)
     bleed_edges: list[Edge] = []
     char_budget: int | None = None
     comment: str = ""

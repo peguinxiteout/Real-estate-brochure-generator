@@ -61,3 +61,9 @@ def test_a_bleed_edge_listed_twice_is_rejected():
 def test_width_mm_must_be_positive(width):
     with pytest.raises(ValidationError, match="width_mm"):
         Slot.model_validate(slot_data(width_mm=width))
+
+
+@pytest.mark.parametrize("height", [0, -5])
+def test_height_mm_must_be_positive(height):
+    with pytest.raises(ValidationError, match="height_mm"):
+        Slot.model_validate(slot_data(height_mm=height))
