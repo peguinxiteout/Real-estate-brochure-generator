@@ -202,3 +202,24 @@ def test_a_run_paused_at_review_resumes_from_sqlite_in_a_new_graph_and_connectio
 def test_the_pipeline_tests_cannot_open_a_network_connection():
     with pytest.raises(AssertionError, match="network"):
         socket.create_connection(("127.0.0.1", 9))  # the discard port: nothing listens, nothing leaves this machine
+
+
+def missing_rera_run():
+    run = Run()
+    run.start(sample_state(briefed=False, rera_number=None))
+    return run
+
+
+def test_the_first_missing_fields_question_has_an_empty_errors_dict():
+    assert missing_rera_run().interrupt_value == {"ask": "brief", "missing_fields": ["rera_number"], "errors": {}}
+
+
+def test_an_unknown_field_in_the_answer_is_reported_and_asked_again():
+    run = missing_rera_run()
+    run.resume({"rera_numbr": "P99999000001"})
+    assert run.paused_at == ("ask_user",)
+    assert run.interrupt_value == {
+        "ask": "brief",
+        "missing_fields": ["rera_number"],
+        "errors": {"rera_numbr": "unknown field"},
+    }

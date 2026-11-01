@@ -4,10 +4,10 @@ from typing import Literal
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 
-from brochure.contracts.project import BriefForm
 from brochure.contracts.qa import QAIssue
 from brochure.contracts.state import PipelineState
 from brochure.pipeline.agents import Agents
+from brochure.pipeline.brief import apply_answers, missing_fields
 
 
 MAX_QA_ROUNDS = 3
@@ -42,10 +42,18 @@ def build_graph(agents: Agents, checkpointer, llm):
         return "ask_user" if state.missing_fields else "brief_ready"
 
     def ask_user(state: PipelineState):
-        """Pause and ask for the missing fields. The caller resumes with {field: value}; the brief step then runs again."""
-        answers = interrupt({"ask": "brief", "missing_fields": state.missing_fields})
-        form = BriefForm.model_validate({**state.brief.form.model_dump(), **answers})
-        return {"brief": state.brief.model_copy(update={"form": form})}
+        """Pause until the missing fields are supplied. The caller resumes with {field: value}.
+
+        Answers that are refused are not applied; the question is asked again with the fields still missing
+        and a short message for each refused field. The brief step runs again once nothing is missing.
+        """
+        form, missing, errors = state.brief.form, state.missing_fields, {}
+        while True:
+            answers = interrupt({"ask": "brief", "missing_fields": missing, "errors": errors})
+            form, errors = apply_answers(form, answers)
+            missing = missing_fields(form)
+            if not missing and not errors:
+                return {"brief": state.brief.model_copy(update={"form": form})}
 
     def brief_ready(state: PipelineState):
         """Joins the brief branch with the vision branch; it does no work."""
