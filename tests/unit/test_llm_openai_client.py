@@ -111,3 +111,23 @@ def test_an_unknown_task_is_an_llm_error_that_names_the_task():
     with pytest.raises(LLMError, match=r"layout\.arrange.*brief\.extract"):
         make_client(transport).complete("layout.arrange", {})
     assert transport.requests == []
+
+
+def rate_limited(retry_after: str | None = None) -> httpx.Response:
+    headers = {"retry-after": retry_after} if retry_after else {}
+    return httpx.Response(429, headers=headers, json={"error": {"message": "Rate limit reached", "type": "tokens"}})
+
+
+def test_a_429_is_retried_after_the_wait_the_server_asked_for():
+    transport, sleeps = Transport(rate_limited("7"), completion('{"name": "A"}')), []
+    assert make_client(transport, sleeps=sleeps).complete("brief.extract", {}) == {"name": "A"}
+    assert len(transport.requests) == 2
+    assert sleeps == [7]
+
+
+def test_three_429s_raise_llm_rate_limited_after_exactly_three_attempts_with_growing_waits():
+    transport, sleeps = Transport(rate_limited()), []
+    with pytest.raises(LLMRateLimited, match="rate limit"):
+        make_client(transport, sleeps=sleeps).complete("brief.extract", {})
+    assert len(transport.requests) == 3
+    assert sleeps == [1, 2]  # no sleep after the last attempt
