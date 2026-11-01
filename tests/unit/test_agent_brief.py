@@ -55,3 +55,46 @@ def test_a_filled_form_field_is_never_overwritten_by_the_model():
     assert form.tone_notes == "Plain."
     assert form.name == "Aurelia Heights"
     assert form.rera_number == "P99999000000 (SAMPLE)"  # still empty in the form, so still filled
+
+
+def test_a_string_the_prompt_does_not_contain_is_dropped():
+    form, _ = run({**STATED, "possession": "March 2031", "location": "Baner, Pune"})
+    assert form.possession is None  # the prompt says December 2028, not March 2031
+    assert form.location is None
+    assert form.rera_number == "P99999000000 (SAMPLE)"  # grounded values in the same reply are kept
+
+
+def test_a_number_the_prompt_does_not_contain_drops_that_configuration_only():
+    found = [{"label": "2 BHK", "carpet_area_sqft": 780}, {"label": "3 BHK", "carpet_area_sqft": 1200}]
+    form, _ = run({**STATED, "configurations": found})
+    assert [(c.label, c.carpet_area_sqft) for c in form.configurations] == [("2 BHK", 780)]
+
+
+def test_a_landmark_distance_the_prompt_does_not_contain_is_dropped():
+    brief = sparse().model_copy(update={"prompt": "The metro station is 1.2 km away. RERA P1."})
+    brief = brief.model_copy(update={"form": brief.form.model_copy(update={"landmarks": []})})
+    found = [{"name": "metro station", "distance_km": 1.2}, {"name": "metro station", "distance_km": 9.9}]
+    form, _ = run(reply(landmarks=found), brief)
+    assert [m.distance_km for m in form.landmarks] == [1.2]
+
+
+def test_an_invented_rera_number_is_dropped():
+    form, _ = run({**STATED, "rera_number": "P52100012345"})
+    assert form.rera_number is None
+
+
+def test_a_rera_number_must_match_the_prompt_character_for_character():
+    form, _ = run({**STATED, "rera_number": "p99999000000 (sample)"})  # right digits, wrong case: not verbatim
+    assert form.rera_number is None
+
+
+def test_strings_match_the_prompt_ignoring_case_and_whitespace():
+    form, _ = run({**STATED, "possession": "december   2028", "tone_notes": "Warm and\naspirational"})
+    assert form.possession == "december   2028"
+    assert form.tone_notes == "Warm and\naspirational"
+
+
+def test_a_number_written_with_a_thousands_comma_in_the_prompt_is_found():
+    brief = sparse().model_copy(update={"prompt": "3 BHK with 1,090 sq ft carpet area."})
+    form, _ = run(reply(configurations=[{"label": "3 BHK", "carpet_area_sqft": 1090}]), brief)
+    assert [c.carpet_area_sqft for c in form.configurations] == [1090]
