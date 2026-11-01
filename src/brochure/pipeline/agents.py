@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 
 from brochure.contracts.images import ImageTag
-from brochure.contracts.project import ProjectFacts
+from brochure.contracts.project import BriefForm, ProjectFacts
 from brochure.contracts.qa import QAIssue
 from brochure.contracts.spec import BrochureSpec
 from brochure.contracts.state import PipelineState
@@ -15,6 +15,7 @@ class BriefOutcome:
 
     project_facts: ProjectFacts | None
     missing_fields: list[str]
+    form: BriefForm | None = None  # the form the facts came from, when the step changed it; the run keeps it
 
 
 @dataclass(frozen=True)
