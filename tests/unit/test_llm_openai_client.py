@@ -131,3 +131,49 @@ def test_three_429s_raise_llm_rate_limited_after_exactly_three_attempts_with_gro
         make_client(transport, sleeps=sleeps).complete("brief.extract", {})
     assert len(transport.requests) == 3
     assert sleeps == [1, 2]  # no sleep after the last attempt
+
+
+def test_a_timeout_is_an_llm_error_and_is_not_retried():
+    transport = Transport(httpx.ReadTimeout("timed out"))
+    with pytest.raises(LLMError, match="timed out") as raised:
+        make_client(transport).complete("brief.extract", {})
+    assert not isinstance(raised.value, LLMRateLimited)
+    assert len(transport.requests) == 1
+
+
+def test_an_http_error_is_an_llm_error_with_the_status_and_is_not_retried():
+    transport = Transport(httpx.Response(500, json={"error": {"message": "upstream broke"}}))
+    with pytest.raises(LLMError, match="500.*upstream broke"):
+        make_client(transport).complete("brief.extract", {})
+    assert len(transport.requests) == 1
+
+
+def test_a_connection_failure_is_an_llm_error():
+    transport = Transport(httpx.ConnectError("name resolution failed"))
+    with pytest.raises(LLMError, match="connect"):
+        make_client(transport).complete("brief.extract", {})
+
+
+def test_the_api_key_never_appears_in_an_error_even_when_the_server_echoes_it():
+    echo = httpx.Response(401, json={"error": {"message": f"Invalid API Key: {API_KEY}"}})
+    with pytest.raises(LLMError) as raised:
+        make_client(Transport(echo)).complete("brief.extract", {})
+    assert API_KEY not in str(raised.value)
+    assert "401" in str(raised.value)
+    assert raised.value.__cause__ is None or API_KEY not in str(raised.value.__cause__)
+
+
+@pytest.mark.parametrize("content", ["not json at all", '["a", "list"]', ""])
+def test_a_reply_that_is_not_a_json_object_is_an_llm_bad_reply(content):
+    with pytest.raises(LLMBadReply):
+        make_client(Transport(completion(content))).complete("brief.extract", {})
+
+
+def test_the_api_key_is_never_logged_or_shown_in_the_client_repr(caplog):
+    caplog.set_level("DEBUG")
+    client = make_client(Transport(rate_limited("1"), completion("{}")))
+    client.complete("brief.extract", {})
+    with pytest.raises(LLMError):
+        make_client(Transport(httpx.Response(500, json={}))).complete("brief.extract", {})
+    assert API_KEY not in caplog.text
+    assert API_KEY not in repr(client) and API_KEY not in str(vars(client))

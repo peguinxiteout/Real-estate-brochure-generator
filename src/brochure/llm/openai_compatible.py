@@ -5,9 +5,9 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 
 import httpx
-from openai import OpenAI, RateLimitError
+from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI, RateLimitError
 
-from brochure.llm.errors import LLMError, LLMRateLimited
+from brochure.llm.errors import LLMBadReply, LLMError, LLMRateLimited
 from brochure.llm.tasks import TaskSpec
 
 MAX_ATTEMPTS = 3
@@ -47,6 +47,7 @@ class OpenAICompatibleClient:
         self.base_url, self.model, self.tasks, self.timeout = base_url, model, tasks, timeout
         self._sleep = sleep
         # max_retries=0: retrying is done here, where the 429 policy lives.
+        self._scrub = lambda text: text.replace(api_key, "***") if api_key else text  # the key is kept out of repr()
         self._sdk = OpenAI(base_url=base_url, api_key=api_key, timeout=timeout, max_retries=0, http_client=http_client)
 
     def complete(self, task: str, payload: dict, images: list[Path] | None = None) -> dict:
@@ -63,17 +64,37 @@ class OpenAICompatibleClient:
             ],
             response_format=response_format,
         )
-        return json.loads(response.choices[0].message.content)
+        return self._parse(response.choices[0].message.content)
+
+    @staticmethod
+    def _parse(content: str | None) -> dict:
+        try:
+            reply = json.loads(content or "")
+        except json.JSONDecodeError:
+            raise LLMBadReply(f"the model's reply is not valid JSON: {(content or '')[:200]!r}") from None
+        if not isinstance(reply, dict):
+            raise LLMBadReply(f"the model's reply is a JSON {type(reply).__name__}, not an object")
+        return reply
 
     def _create(self, **request):
-        """One chat completion. An HTTP 429 is retried after the wait the server asked for, up to MAX_ATTEMPTS in all."""
+        """One chat completion. An HTTP 429 is retried after the wait the server asked for, up to MAX_ATTEMPTS in all.
+
+        Every other failure is an LLMError whose text never includes the API key.
+        """
         for attempt in range(1, MAX_ATTEMPTS + 1):
             try:
                 return self._sdk.chat.completions.create(model=self.model, temperature=0, **request)
             except RateLimitError as error:
                 if attempt == MAX_ATTEMPTS:
-                    raise LLMRateLimited(f"rate limit still hit after {MAX_ATTEMPTS} attempts") from error
+                    raise LLMRateLimited(f"rate limit still hit after {MAX_ATTEMPTS} attempts") from None
                 self._sleep(_wait_seconds(error.response.headers.get("retry-after"), attempt))
+            except APITimeoutError:
+                raise LLMError(f"the request timed out after {self.timeout:g}s") from None
+            except APIConnectionError:
+                raise LLMError(f"could not connect to {self.base_url}") from None
+            except APIStatusError as error:
+                # `from None`: the SDK error can carry the server's text, which might echo the key.
+                raise LLMError(f"the provider answered HTTP {error.status_code}: {self._scrub(str(error.message))}") from None
 
     def _format(self, task: str, spec: TaskSpec) -> tuple[str, dict]:
         """The system message and response_format for a task: strict json_schema where the model supports it."""
