@@ -260,3 +260,16 @@ def test_a_valid_answer_after_bad_ones_continues_to_review():
     assert len(run.state.spec.pages) == 8
     run.resume("approved")
     assert run.paused_at == ()
+
+
+def test_an_answer_that_is_not_an_object_is_refused_and_asked_again():
+    run = missing_rera_run()
+    run.resume("P99999000001")
+    assert run.paused_at == ("ask_user",)
+    assert run.interrupt_value == {
+        "ask": "brief",
+        "missing_fields": ["rera_number"],
+        "errors": {"answer": "answer must be an object of field: value pairs"},
+    }
+    run.resume({"rera_number": "P99999000001"})
+    assert run.paused_at == ("human_review",)

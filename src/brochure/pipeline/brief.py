@@ -43,8 +43,10 @@ def brief_step(state: PipelineState, llm) -> BriefOutcome:
     return BriefOutcome(project_facts=ProjectFacts.model_validate(form.model_dump()), missing_fields=[])
 
 
-def apply_answers(form: BriefForm, answers: dict) -> tuple[BriefForm, dict[str, str]]:
+def apply_answers(form: BriefForm, answers: object) -> tuple[BriefForm, dict[str, str]]:
     """Put each answered field into the form. Returns the new form and a short message for every field refused."""
+    if not isinstance(answers, dict):
+        return form, {"answer": "answer must be an object of field: value pairs"}
     errors: dict[str, str] = {}
     for field, value in answers.items():
         if field not in BriefForm.model_fields:
