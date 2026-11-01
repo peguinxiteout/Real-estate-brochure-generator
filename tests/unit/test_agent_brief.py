@@ -6,7 +6,7 @@ import pytest
 
 from brochure.agents.brief import brief_agent
 from brochure.contracts.project import Brief, BriefForm
-from brochure.llm import FakeLLM
+from brochure.llm import FakeLLM, LLMBadReply, LLMError, LLMRateLimited
 
 SAMPLE = Path(__file__).parents[2] / "sample"
 
@@ -98,3 +98,79 @@ def test_a_number_written_with_a_thousands_comma_in_the_prompt_is_found():
     brief = sparse().model_copy(update={"prompt": "3 BHK with 1,090 sq ft carpet area."})
     form, _ = run(reply(configurations=[{"label": "3 BHK", "carpet_area_sqft": 1090}]), brief)
     assert [c.carpet_area_sqft for c in form.configurations] == [1090]
+
+
+def test_every_dropped_value_is_logged_with_its_field(caplog):
+    caplog.set_level("INFO", logger="brochure.agents.brief")
+    run({**STATED, "possession": "March 2031", "rera_number": "P52100012345"})
+    dropped = [r.getMessage() for r in caplog.records if "not in the prompt" in r.getMessage()]
+    assert any("possession" in m and "March 2031" in m for m in dropped)
+    assert any("rera_number" in m for m in dropped)
+    assert not any("configurations" in m for m in dropped)
+
+
+class Script:
+    """An LLMClient that plays one scripted answer per call (a dict is returned, an exception is raised)."""
+
+    def __init__(self, *answers):
+        self.answers, self.calls = list(answers), []
+
+    def complete(self, task, payload, images=None):
+        self.calls.append((task, payload, images))
+        answer = self.answers[len(self.calls) - 1]
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+
+INVALID = {**STATED, "possession": 2028}  # a number where a string belongs
+
+
+def test_one_extract_call_whose_payload_is_the_form_and_the_prompt_and_no_images():
+    brief = sparse()
+    _, llm = run(STATED, brief)
+    assert [(c.task, c.images) for c in llm.calls] == [("brief.extract", [])]
+    assert llm.calls[0].payload == {"form": brief.form.model_dump(), "prompt": brief.prompt}
+    assert llm.calls[0].payload["form"]["rera_number"] is None  # empty fields are sent too
+
+
+def test_an_invalid_reply_is_retried_once_with_the_validation_error_and_the_second_reply_is_used():
+    llm = Script(INVALID, STATED)
+    form = brief_agent(sparse(), llm)
+    assert len(llm.calls) == 2
+    first, second = llm.calls[0][1], llm.calls[1][1]
+    assert "previous_error" not in first
+    assert "possession" in second["previous_error"]
+    assert (second["form"], second["prompt"]) == (first["form"], first["prompt"])
+    assert form.possession == "December 2028"
+
+
+def test_a_reply_that_is_not_json_is_retried_like_an_invalid_one():
+    llm = Script(LLMBadReply("not valid JSON"), STATED)
+    assert brief_agent(sparse(), llm).possession == "December 2028"
+    assert "not valid JSON" in llm.calls[1][1]["previous_error"]
+
+
+def test_two_invalid_replies_return_the_form_unchanged_and_log_a_warning(caplog):
+    llm = Script(INVALID, INVALID)
+    brief = sparse()
+    form = brief_agent(brief, llm)
+    assert form == brief.form
+    assert len(llm.calls) == 2  # one retry, not more
+    assert [r.levelname for r in caplog.records if "form only" in r.getMessage()] == ["WARNING"]
+
+
+@pytest.mark.parametrize("error", [LLMRateLimited("rate limit still hit"), LLMError("HTTP 500"), LLMError("timed out")])
+def test_a_client_error_returns_the_form_unchanged_without_raising_and_logs_a_warning(error, caplog):
+    llm = Script(error)
+    brief = sparse()
+    assert brief_agent(brief, llm) == brief.form
+    assert len(llm.calls) == 1  # no retry: the client has already done its own
+    warning = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warning) == 1 and str(error) in warning[0].getMessage()
+
+
+def test_an_error_on_the_retry_also_falls_back_to_the_form():
+    llm = Script(INVALID, LLMError("HTTP 503"))
+    brief = sparse()
+    assert brief_agent(brief, llm) == brief.form

@@ -3,10 +3,10 @@ import logging
 import re
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from brochure.contracts.project import Brief, BriefForm, Configuration, Landmark, Specification
-from brochure.llm import LLMClient, TaskSpec
+from brochure.llm import LLMBadReply, LLMClient, LLMError, TaskSpec
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ class _Grounding:
     def grounded(self, found: Extraction) -> Extraction:
         """`found` without every value the prompt does not support."""
         scalars = {f: self.string(getattr(found, f)) for f in ("name", "rera_state", "location", "possession", "tone_notes")}
-        return Extraction(
+        kept = Extraction(
             **scalars,
             rera_number=self.rera(found.rera_number),
             configurations=[c for c in found.configurations if self.string(c.label) and self.number(c.carpet_area_sqft)],
@@ -85,6 +85,15 @@ class _Grounding:
             specifications=[x for x in found.specifications if self.string(x.category) and self.string(x.detail)],
             landmarks=[m for m in found.landmarks if self.string(m.name) and self.number(m.distance_km)],
         )
+        for field in Extraction.model_fields:
+            before, after = getattr(found, field), getattr(kept, field)
+            if isinstance(before, list):
+                lost = [v for v in before if v not in after]
+            else:
+                lost = [before] if before is not None and after is None else []
+            for value in lost:
+                logger.info("dropped %s=%r from the model's reply: not in the prompt", field, value)
+        return kept
 
 
 def _blank(value: str | None) -> bool:
@@ -109,7 +118,25 @@ def _merge(form: BriefForm, found: Extraction) -> BriefForm:
     return form.model_copy(update=fill)
 
 
+def _extract(payload: dict, llm: LLMClient) -> Extraction:
+    """Ask the model; if its reply is not valid, ask once more, telling it what was wrong. Raises LLMError on failure."""
+    try:
+        return Extraction.model_validate(llm.complete(TASK, payload))
+    except (LLMBadReply, ValidationError) as error:
+        problem = str(error)
+    logger.info("the model's reply was not valid, asking once more: %s", problem)
+    try:
+        return Extraction.model_validate(llm.complete(TASK, {**payload, "previous_error": problem}))
+    except ValidationError as error:
+        raise LLMBadReply(f"the model's reply was not valid twice: {error}") from None
+
+
 def brief_agent(brief: Brief, llm: LLMClient) -> BriefForm:
+    """The form with its empty fields filled from the prompt. If the model cannot be used, the form as it was."""
     payload = {"form": brief.form.model_dump(), "prompt": brief.prompt}
-    found = Extraction.model_validate(llm.complete(TASK, payload))
+    try:
+        found = _extract(payload, llm)
+    except LLMError as error:
+        logger.warning("the Brief agent used the form only, the model gave nothing usable: %s", error)
+        return brief.form
     return _merge(brief.form, _Grounding(brief.prompt).grounded(found))
