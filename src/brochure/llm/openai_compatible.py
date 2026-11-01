@@ -7,6 +7,7 @@ from pathlib import Path
 import httpx
 from openai import OpenAI
 
+from brochure.llm.errors import LLMError
 from brochure.llm.tasks import TaskSpec
 
 # Models Groq documents as supporting strict json_schema (constrained decoding). Anything else gets JSON-object mode.
@@ -36,8 +37,12 @@ class OpenAICompatibleClient:
         self._sdk = OpenAI(base_url=base_url, api_key=api_key, timeout=timeout, max_retries=0, http_client=http_client)
 
     def complete(self, task: str, payload: dict, images: list[Path] | None = None) -> dict:
+        if images:
+            raise NotImplementedError("OpenAICompatibleClient does not send images yet (no vision support)")
+        if task not in self.tasks:
+            raise LLMError(f"no prompt is registered for task {task!r} (known: {', '.join(sorted(self.tasks)) or 'none'})")
         spec = self.tasks[task]
-        system, response_format = self._format(task, spec)
+        system,response_format = self._format(task, spec)
         response = self._sdk.chat.completions.create(
             model=self.model,
             temperature=0,

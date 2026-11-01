@@ -4,6 +4,7 @@ import json
 import httpx
 import pytest
 
+from brochure.llm.errors import LLMBadReply, LLMError, LLMRateLimited
 from brochure.llm.openai_compatible import OpenAICompatibleClient
 from brochure.llm.tasks import TaskSpec
 
@@ -96,3 +97,17 @@ def test_a_task_without_a_schema_uses_json_object_mode_even_on_a_strict_model():
     assert body["response_format"] == {"type": "json_object"}
     assert body["messages"][0]["content"].startswith("Just talk.")
     assert "JSON" in body["messages"][0]["content"]
+
+
+def test_images_are_not_supported_yet_and_nothing_is_sent(tmp_path):
+    transport = Transport(completion("{}"))
+    with pytest.raises(NotImplementedError, match="images"):
+        make_client(transport).complete("brief.extract", {}, images=[tmp_path / "a.jpg"])
+    assert transport.requests == []
+
+
+def test_an_unknown_task_is_an_llm_error_that_names_the_task():
+    transport = Transport(completion("{}"))
+    with pytest.raises(LLMError, match=r"layout\.arrange.*brief\.extract"):
+        make_client(transport).complete("layout.arrange", {})
+    assert transport.requests == []
