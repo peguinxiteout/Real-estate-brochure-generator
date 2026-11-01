@@ -22,25 +22,28 @@ Built (see [docs/CHANGELOG.md](docs/CHANGELOG.md) for the history):
 - Print rules: print config and DPI maths (section 7).
 - Slots format, loader and the `classic-8pp` template (section 8).
 - LLM interface with a `FakeLLM` for tests (section 9). There is no real LLM client.
+- The pipeline graph (LangGraph) running on stub agents, with pause and resume for missing fields and for human review (section 3). The stubs return fixed sample data and make no LLM calls.
 - A fictional sample project, "Aurelia Heights" (section 10).
 - `brochure doctor`: checks Python, WeasyPrint, Ghostscript and bundled fonts. It is the only CLI command.
 - CI on GitHub Actions: runs the unit tests on pushes to `feature/**` and `fix/**` and on pull requests into `master`.
 
 Not built:
 
-- The agents (Brief, Vision, Copywriter, Layout, QA critic) and the graph that connects them.
-- The image tools and the renderer (HTML to PDF, bleed, crop marks, CMYK).
-- Export.
+- Real agents. Vision, Copywriter, Layout and the QA critic are stubs. The brief step converts the form to facts and ignores the prompt; it does not use an LLM.
+- The image tools. They are not in the graph yet.
+- The renderer (HTML to PDF, bleed, crop marks, CMYK). The stub returns fake file paths and creates no files.
+- Export. The stub does nothing.
 - An API and a frontend.
 - Checks of text length against `char_budget` and of images against the DPI rule inside a pipeline. The maths exists; nothing runs it yet.
 
 ## 3. How it will work
 
-None of these steps is built yet. This is the design the contracts were written for.
+This is the design the contracts were written for. The graph that connects the steps is built and runs on stub agents (see "The graph on stub agents" below). The real agents, the image tools and the renderer are not built, and step 3 is not in the graph yet.
 
 ```mermaid
 flowchart TD
     IN["Inputs: brand kit, brief form + prompt, photos"] --> S1["Step 1: Brief agent"]
+    S1 -->|"required field missing: ask the user"| S1
     IN --> S2["Step 2: Vision agent"]
     S2 --> S3["Step 3: Image tools"]
     S1 --> S4["Step 4: Copywriter"]
@@ -55,17 +58,93 @@ flowchart TD
     S8 -->|"approved"| S9["Step 9: Export"]
 ```
 
-| Step | What it does |
-|---|---|
-| 1. Brief agent | Turns the form and the prompt into `ProjectFacts`. Lists required fields that are missing in `missing_fields` so the user can be asked. |
-| 2. Vision agent | Runs in parallel with step 1. Describes each photo as an `ImageTag` (kind, subject, quality, focal point). |
-| 3. Image tools | Plain code, not an agent. For each image: crops it to its slot's aspect ratio around the focal point, fixes exposure, runs the DPI check, and upscales by at most 2x. Low-resolution images are flagged and limited to small slots. Planned, not built. |
-| 4. Copywriter | Writes the text for each text slot, within its `char_budget`. |
-| 5. Layout agent | Chooses which image and text goes in which slot and produces the `BrochureSpec`. Also applies the human's chat edits. |
-| 6. Renderer | Fills the HTML/CSS template from the spec and produces the PDF and one PNG per page. |
-| 7. QA critic | Looks at the pages and the spec and returns `QAIssue`s. Each issue says who should fix it (`route_to`). The loop stops after 3 rounds; that limit is not in the code yet (`qa_round` only counts). |
-| 8. Human review | A person approves, or asks for changes in chat. |
-| 9. Export | Writes the approved PDF. |
+| Step | What it does | Today |
+|---|---|---|
+| 1. Brief agent | Turns the form and the prompt into `ProjectFacts`. Lists required fields that are missing in `missing_fields` so the user can be asked. | Real code for form to facts and the question loop (bad answers are asked again); no LLM, prompt unused. |
+| 2. Vision agent | Runs in parallel with step 1. Describes each photo as an `ImageTag` (kind, subject, quality, focal point). | Stub: returns the 12 sample image tags. |
+| 3. Image tools | Plain code, not an agent. For each image: crops it to its slot's aspect ratio around the focal point, fixes exposure, runs the DPI check, and upscales by at most 2x. Low-resolution images are flagged and limited to small slots. Planned, not built. | Not built, not in the graph. |
+| 4. Copywriter | Writes the text for each text slot, within its `char_budget`. | Stub: sample text, within each `char_budget`. |
+| 5. Layout agent | Chooses which image and text goes in which slot and produces the `BrochureSpec`. Also applies the human's chat edits. | Stub: places the sample images and text in every slot. |
+| 6. Renderer | Fills the HTML/CSS template from the spec and produces the PDF and one PNG per page. | Stub: fake paths, no files. |
+| 7. QA critic | Looks at the pages and the spec and returns `QAIssue`s. Each issue says who should fix it (`route_to`). The loop stops after 3 rounds. | Stub: no issues unless scripted. The routing and the 3-round limit are real. |
+| 8. Human review | A person approves, or asks for changes in chat. | Real: pauses, resumes with `approved` or `changes_requested`. No chat text yet. |
+| 9. Export | Writes the approved PDF. | Stub: does nothing. |
+
+### The graph on stub agents
+
+`src/brochure/pipeline/` holds the graph, built with LangGraph. `build_graph(agents, checkpointer, llm)` compiles it
+over `PipelineState`. `agents` is an `Agents` dataclass with one callable per step; the graph never imports a concrete
+agent, so a real agent replaces a stub by being passed in, with no change to the graph. Every agent has the shape
+`(state, llm) -> output`. The stubs are in `pipeline/stubs.py`. They read `templates/classic-8pp/slots.json` and the
+files in `sample/` (including `sample/stub_copy.json`), make no LLM calls and render nothing.
+
+- Brief and vision start in parallel; the copywriter starts when both are done. If the brief has missing required
+  fields, the run pauses at `ask_user` with `missing_fields` set. The caller resumes with the values, for example
+  `Command(resume={"rera_number": "..."})`. Each answered field that is valid is kept; a field that is not (unknown,
+  wrong type, blank, or still failing `ProjectFacts`) is refused and the question is asked again. Nothing raises. The
+  brief step runs again when nothing is missing.
+- After the renderer, the QA step runs. An issue routed to `copywriter` sends the run back to the copywriter (then
+  layout, render, QA); one routed to `layout` goes back to layout; one routed to `none` does not loop. After 3 QA
+  passes the run moves on whatever the issues say. Issues that do not loop, and any left after the 3rd pass, are
+  written to `spec.qa_warnings`.
+- `human_review` pauses. The caller resumes with `"approved"` (the run goes to export and ends) or
+  `"changes_requested"` (back through layout, render and QA to review; `qa_round` restarts at 0). Any other answer is
+  asked again.
+- What the caller sees when the run pauses (`graph.get_state(config).tasks[0].interrupts[0].value`):
+
+  ```
+  missing fields:  {"ask": "brief", "missing_fields": ["rera_number"], "errors": {}}
+  after a bad one: {"ask": "brief", "missing_fields": ["rera_number"], "errors": {"rera_number": "must not be empty"}}
+  review:          {"ask": "review", "pdf_path": "...", "page_images": ["...", ...], "error": null}
+  after a bad one: {"ask": "review", "pdf_path": "...", "page_images": [...], "error": "answer 'approved' or 'changes_requested', not 'maybe'"}
+  ```
+
+  `errors` maps a field name to a short message; an unknown field is keyed by the name it was sent under (message
+  "unknown field"), and an answer that is not an object is keyed "answer". `missing_fields` lists what is still
+  missing after the valid part of the last answer was applied. If nothing is missing but an error was reported,
+  resume with `{}` to carry on.
+- Checkpointers are passed in: `memory_checkpointer()` for tests, `sqlite_checkpointer(path)` for runs that must
+  survive a restart.
+
+This was run from the repo root:
+
+```python
+import json
+
+from langgraph.types import Command
+
+from brochure.contracts.brand import BrandKit
+from brochure.contracts.project import Brief
+from brochure.contracts.state import PipelineState
+from brochure.llm import FakeLLM
+from brochure.pipeline import build_graph, memory_checkpointer, stub_agents
+
+state = PipelineState(
+    template_id="classic-8pp",
+    brand_kit=BrandKit.model_validate(json.load(open("sample/brand_kit.json"))),
+    brief=Brief.model_validate(json.load(open("sample/brief.json"))),
+    image_dir="sample/images",
+)
+graph = build_graph(stub_agents(), memory_checkpointer(), FakeLLM({}))
+config = {"configurable": {"thread_id": "demo"}}
+
+graph.invoke(state, config)
+print(graph.get_state(config).next)  # paused at the review step
+graph.invoke(Command(resume="approved"), config)
+print(graph.get_state(config).next)  # empty: the run has finished
+```
+
+```
+('human_review',)
+()
+```
+
+Run the pipeline tests. They use the in-memory checkpointer and a temporary SQLite file, and they fail if anything
+opens a network connection or calls the `FakeLLM`:
+
+```
+~/.venvs/brochure/bin/python -m pytest tests/unit/test_pipeline_graph.py tests/unit/test_pipeline_stubs.py tests/unit/test_pipeline_brief.py
+```
 
 ## 4. Repository layout
 
@@ -73,7 +152,7 @@ flowchart TD
 .github/workflows/tests.yml   CI: unit tests on branch pushes and pull requests
 contracts/json/               JSON Schema for each exported model (generated, committed)
 docs/CHANGELOG.md             history, newest entry first
-sample/                       fictional "Aurelia Heights" project (brand kit, brief, image manifest, logo)
+sample/                       fictional "Aurelia Heights" project (brand kit, brief, image manifest, image tags, logo)
 src/brochure/
   cli.py                      `brochure` command (only `doctor`)
   doctor.py                   environment checks and fix hints
@@ -82,10 +161,10 @@ src/brochure/
   slots.py                    load slots.json, compute min_px
   contracts/                  Pydantic models and the schema export
   llm/                        LLMClient, FakeLLM, Agent protocol
+  pipeline/                   LangGraph graph, stub agents, checkpointers
 templates/classic-8pp/        slots.json for the 8-page template (no HTML/CSS yet)
 tests/unit/                   fast tests, no network
 tests/integration/            tests that need WeasyPrint or Ghostscript
-tests/fixtures/               image_tags.json for the 12 sample images
 tools/                        export_schemas.py, make_sample_images.py
 README.md                     this file
 CONTRIBUTING.md               setup, TDD rules, branching rules
@@ -239,8 +318,8 @@ and the slot's comment says so.
   example `"vision.tag"`. There is no real client yet.
 - `FakeLLM`: returns canned responses keyed by task, records every call (`llm.calls`), and raises
   `MissingCannedResponse` naming the task when it has no answer.
-- `Agent[I, O]`: a typing-only protocol. An agent is a function `(inputs, llm) -> schema object`. No agents are
-  implemented.
+- `Agent[I, O]`: a typing-only protocol. An agent is a function `(inputs, llm) -> schema object`. The stub agents are in
+  `src/brochure/pipeline/stubs.py`; there are no real agents.
 
 Unit tests never touch the network. Anything that would call a model uses `FakeLLM`. The `llm` pytest marker is
 reserved for tests that call a real model and is not used by any test yet.
@@ -286,7 +365,8 @@ placeholder (`P99999000000 (SAMPLE)`).
 | `sample/brief.json` | A `Brief`. The form is complete, so it converts to `ProjectFacts` unchanged. |
 | `sample/images.json` | An `ImageManifest` of 12 images with pixel sizes and the slot each is meant for. |
 | `sample/logo.svg` | The logo the brand kit points to. |
-| `tests/fixtures/image_tags.json` | An `ImageTag` for each of the 12 images, for code that runs before the Vision agent exists. |
+| `sample/stub_copy.json` | Text for the eight copy slots that cannot be derived from the facts or the brand kit; used by the stub copywriter. |
+| `sample/image_tags.json` | An `ImageTag` for each of the 12 images, for code that runs before the Vision agent exists. |
 | `sample/images/` | Generated by `tools/make_sample_images.py`; not committed. |
 
 For their intended slots, three images fail the DPI rule and one warns:
@@ -334,9 +414,10 @@ Full rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
 - Logo slots (`cover_logo`, `back_logo`) are image slots, so the DPI rule would apply to them. They need an exemption
   for vector (SVG) logos.
 - Apart from the full-page hero, the slot sizes are placeholders.
-- `PipelineState` has no field for chat edits yet.
 - The 25 mm QR size is provisional.
-- The 3-round limit on the QA loop is not in the code; `qa_round` is only a counter.
+- `PipelineState` has no field for the text of a chat edit, so `changes_requested` re-runs layout with no instructions.
+- The stub pipeline is hard-wired to `classic-8pp` and the sample files. The brief step ignores the prompt.
+- The image tools are not in the graph.
 - `brochure doctor` fails the fonts check because `assets/fonts` (Playfair Display, Inter) is not in the repo.
 - `jinja2`, `qrcode` and `pypdf` are declared in `pyproject.toml` but nothing in the code uses them yet. WeasyPrint
   is only used by the doctor.

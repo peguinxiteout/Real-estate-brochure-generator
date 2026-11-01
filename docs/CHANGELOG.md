@@ -2,6 +2,19 @@
 
 Newest entry first.
 
+## 2026-10-30: Pipeline on stub agents
+
+The whole flow (brief, copy, layout, render, QA loop, human review, export) runs end to end on the Aurelia Heights sample with no LLM and no rendering. Real agents will replace the stubs one at a time without changes to the graph.
+
+- `src/brochure/pipeline/`: `build_graph(agents, checkpointer, llm)` compiles a LangGraph graph over `PipelineState`. `Agents` holds one callable per step; the graph imports no concrete agent.
+- Brief and vision run in parallel and join before the copywriter. Missing required fields pause the run (`ask_user`, with `missing_fields` set); resuming with `{field: value}` re-runs the brief step. An answer that does not validate (unknown field, wrong type, blank or still invalid value, not an object) is never raised: the valid part is kept and the question is asked again with the fields still missing and a short message per bad field. The review question is asked again the same way. Both questions always carry the same keys (`errors` / `error`). The brief step itself is real code (form to `ProjectFacts`), not a stub.
+- QA routing by `route_to`: `copywriter` loops back to the copywriter, `layout` to layout, `none` does not loop. At most 3 QA rounds; issues left at the end go to `spec.qa_warnings`. `human_review` pauses and resumes with `approved` (export, then end) or `changes_requested` (layout, render, QA, review again; `qa_round` restarts at 0).
+- Stub agents (`pipeline/stubs.py`): vision, copywriter, layout (every slot of `classic-8pp` filled once), renderer (fake paths, no files), a scripted QA, and a no-op export. No stub calls the LLM.
+- Checkpointers: in-memory for tests, SQLite for real runs; both use a serializer that lists the contract models.
+- `sample/image_tags.json` (moved from `tests/fixtures/`) and the new `sample/stub_copy.json` feed the stubs.
+- Dependencies: `langgraph==1.2.18` and `langgraph-checkpoint-sqlite==3.1.2`.
+- Not done: image tools are not in the graph; no field for the text of a chat edit in `PipelineState`.
+
 ## 2026-10-30: README
 
 - Added `README.md`: what the project is, what is built and what is not, the planned pipeline, repository layout, getting started, the contracts, print rules, templates and slots, the LLM interface, the sample project, working rules, a glossary and known limitations.
