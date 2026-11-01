@@ -295,3 +295,13 @@ def test_a_bad_value_inside_a_list_is_reported_with_its_position():
     run.resume({"configurations": [{"label": "2 BHK", "carpet_area_sqft": 0}]})
     assert run.interrupt_value["errors"] == {"configurations": "0.carpet_area_sqft: Input should be greater than 0"}
     assert run.interrupt_value["missing_fields"] == ["rera_number"]
+
+
+def test_the_review_question_has_the_same_keys_every_time():
+    run = Run()
+    run.start()
+    pages = [f"FAKE-NOT-RENDERED/page-{n}.png" for n in range(1, 9)]
+    first = {"ask": "review", "pdf_path": "FAKE-NOT-RENDERED/brochure.pdf", "page_images": pages, "error": None}
+    assert run.interrupt_value == first
+    run.resume("maybe")
+    assert run.interrupt_value == {**first, "error": "answer 'approved' or 'changes_requested', not 'maybe'"}

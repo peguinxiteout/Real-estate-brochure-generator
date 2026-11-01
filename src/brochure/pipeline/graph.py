@@ -81,7 +81,7 @@ def build_graph(agents: Agents, checkpointer, llm):
 
     def human_review(state: PipelineState) -> Command[Literal["export", "layout"]]:
         """Pause for a person. Resume with "approved" or "changes_requested"."""
-        question = {"ask": "review", "pdf_path": state.pdf_path, "page_images": state.page_images}
+        question = {"ask": "review", "pdf_path": state.pdf_path, "page_images": state.page_images, "error": None}
         decision = interrupt(question)
         while decision not in ("approved", "changes_requested"):
             decision = interrupt({**question, "error": f"answer 'approved' or 'changes_requested', not {decision!r}"})
