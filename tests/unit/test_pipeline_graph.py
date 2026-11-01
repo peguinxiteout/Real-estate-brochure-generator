@@ -246,3 +246,17 @@ def test_a_value_of_the_wrong_type_is_refused_with_a_readable_message_and_asked_
         "missing_fields": ["rera_number"],
         "errors": {"rera_number": "Input should be a valid string"},
     }
+
+
+def test_a_valid_answer_after_bad_ones_continues_to_review():
+    run = missing_rera_run()
+    run.resume({"rera_numbr": "x"})
+    run.resume({"rera_number": ""})
+    assert run.paused_at == ("ask_user",)
+    run.resume({"rera_number": "P99999000001"})
+    assert run.paused_at == ("human_review",)
+    assert run.state.missing_fields == []
+    assert run.state.project_facts.rera_number == "P99999000001"
+    assert len(run.state.spec.pages) == 8
+    run.resume("approved")
+    assert run.paused_at == ()
