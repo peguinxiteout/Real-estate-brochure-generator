@@ -50,7 +50,11 @@ def apply_answers(form: BriefForm, answers: dict) -> tuple[BriefForm, dict[str, 
         if field not in BriefForm.model_fields:
             errors[field] = "unknown field"
             continue
-        candidate = BriefForm.model_validate({**form.model_dump(), field: value})
+        try:
+            candidate = BriefForm.model_validate({**form.model_dump(), field: value})
+        except ValidationError as error:
+            errors[field] = _readable(error.errors()[0])
+            continue
         problem = field_problems(candidate).get(field)
         if problem:
             errors[field] = problem

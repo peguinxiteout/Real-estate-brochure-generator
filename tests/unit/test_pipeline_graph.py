@@ -235,3 +235,14 @@ def test_an_empty_rera_number_is_refused_with_a_readable_message_and_asked_again
         "errors": {"rera_number": "must not be empty"},
     }
     assert run.state.brief.form.rera_number is None  # the refused value was not kept
+
+
+def test_a_value_of_the_wrong_type_is_refused_with_a_readable_message_and_asked_again():
+    run = missing_rera_run()
+    run.resume({"rera_number": 12345})
+    assert run.paused_at == ("ask_user",)
+    assert run.interrupt_value == {
+        "ask": "brief",
+        "missing_fields": ["rera_number"],
+        "errors": {"rera_number": "Input should be a valid string"},
+    }
