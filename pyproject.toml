@@ -15,6 +15,7 @@ dependencies = [
     "Pillow>=10",
     "langgraph==1.2.18",
     "langgraph-checkpoint-sqlite==3.1.2",
+    "openai==3.42.0",
 ]
 
 [project.optional-dependencies]

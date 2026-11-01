@@ -69,3 +69,30 @@ def test_sends_model_messages_temperature_and_a_strict_json_schema_to_chat_compl
         "type": "json_schema",
         "json_schema": {"name": "brief_extract", "strict": True, "schema": SCHEMA},
     }
+
+
+def test_parses_the_reply_as_a_dict():
+    transport = Transport(completion('{"name": "Aurelia Heights"}'))
+    assert make_client(transport).complete("brief.extract", {}) == {"name": "Aurelia Heights"}
+
+
+def test_a_model_without_strict_schemas_gets_json_object_mode_with_the_schema_in_the_system_message():
+    transport = Transport(completion("{}"))
+    make_client(transport, model="llama-3.3-70b-versatile").complete("brief.extract", {"prompt": "p"})
+
+    body = transport.body()
+    assert body["response_format"] == {"type": "json_object"}
+    system = body["messages"][0]["content"]
+    assert system.startswith("Extract the facts.")
+    assert "JSON" in system
+    assert json.dumps(SCHEMA) in system
+
+
+def test_a_task_without_a_schema_uses_json_object_mode_even_on_a_strict_model():
+    transport = Transport(completion("{}"))
+    make_client(transport).complete("plain.task", {})
+
+    body = transport.body()
+    assert body["response_format"] == {"type": "json_object"}
+    assert body["messages"][0]["content"].startswith("Just talk.")
+    assert "JSON" in body["messages"][0]["content"]

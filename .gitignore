@@ -10,3 +10,6 @@ sample/images/
 CLAUDE.md
 PLAN.md
 .claude/
+
+# Secrets
+.env
