@@ -6,17 +6,33 @@ from brochure.contracts.state import PipelineState
 from brochure.pipeline.agents import BriefOutcome
 
 
-def missing_fields(form: BriefForm) -> list[str]:
-    """The top-level fields that stop the form becoming ProjectFacts, in form order.
+def _readable(error: dict) -> str:
+    """One short sentence for a pydantic error, without the field name (the caller keys it by field)."""
+    where = ".".join(str(part) for part in error["loc"][1:])
+    if error["type"] == "missing" or (error["type"] == "string_type" and error["input"] is None):
+        what = "required"
+    elif error["type"] == "string_too_short":
+        what = "must not be empty"
+    else:
+        what = error["msg"]
+    return f"{where}: {what}" if where else what
 
-    A field counts as missing when it is absent, None, blank, or invalid: in each case the user has to supply it.
-    """
+
+def field_problems(form: BriefForm) -> dict[str, str]:
+    """Why each top-level field stops the form becoming ProjectFacts, in form order. Empty when it converts."""
     try:
         ProjectFacts.model_validate(form.model_dump())
     except ValidationError as error:
-        failed = {e["loc"][0] for e in error.errors()}
-        return [f for f in BriefForm.model_fields if f in failed]
-    return []
+        first = {}
+        for e in error.errors():
+            first.setdefault(e["loc"][0], _readable(e))
+        return {f: first[f] for f in BriefForm.model_fields if f in first}
+    return {}
+
+
+def missing_fields(form: BriefForm) -> list[str]:
+    """The fields the user still has to supply: absent, None, blank or invalid, in form order."""
+    return list(field_problems(form))
 
 
 def brief_step(state: PipelineState, llm) -> BriefOutcome:
@@ -34,5 +50,10 @@ def apply_answers(form: BriefForm, answers: dict) -> tuple[BriefForm, dict[str, 
         if field not in BriefForm.model_fields:
             errors[field] = "unknown field"
             continue
-        form = BriefForm.model_validate({**form.model_dump(), field: value})
+        candidate = BriefForm.model_validate({**form.model_dump(), field: value})
+        problem = field_problems(candidate).get(field)
+        if problem:
+            errors[field] = problem
+            continue
+        form = candidate
     return form, errors

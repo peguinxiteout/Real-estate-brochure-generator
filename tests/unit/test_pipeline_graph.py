@@ -223,3 +223,15 @@ def test_an_unknown_field_in_the_answer_is_reported_and_asked_again():
         "missing_fields": ["rera_number"],
         "errors": {"rera_numbr": "unknown field"},
     }
+
+
+def test_an_empty_rera_number_is_refused_with_a_readable_message_and_asked_again():
+    run = missing_rera_run()
+    run.resume({"rera_number": "  "})
+    assert run.paused_at == ("ask_user",)
+    assert run.interrupt_value == {
+        "ask": "brief",
+        "missing_fields": ["rera_number"],
+        "errors": {"rera_number": "must not be empty"},
+    }
+    assert run.state.brief.form.rera_number is None  # the refused value was not kept
