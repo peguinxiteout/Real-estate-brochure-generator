@@ -273,3 +273,25 @@ def test_an_answer_that_is_not_an_object_is_refused_and_asked_again():
     }
     run.resume({"rera_number": "P99999000001"})
     assert run.paused_at == ("human_review",)
+
+
+def test_the_valid_part_of_a_mixed_answer_is_kept_and_only_the_bad_field_stays_missing():
+    run = Run()
+    run.start(sample_state(briefed=False, name=None, rera_number=None))
+    assert run.interrupt_value["missing_fields"] == ["name", "rera_number"]
+    run.resume({"name": "Aurelia Heights", "rera_number": ""})
+    assert run.interrupt_value == {
+        "ask": "brief",
+        "missing_fields": ["rera_number"],
+        "errors": {"rera_number": "must not be empty"},
+    }
+    run.resume({"rera_number": "P99999000001"})
+    assert run.paused_at == ("human_review",)
+    assert run.state.project_facts.name == "Aurelia Heights"
+
+
+def test_a_bad_value_inside_a_list_is_reported_with_its_position():
+    run = missing_rera_run()
+    run.resume({"configurations": [{"label": "2 BHK", "carpet_area_sqft": 0}]})
+    assert run.interrupt_value["errors"] == {"configurations": "0.carpet_area_sqft: Input should be greater than 0"}
+    assert run.interrupt_value["missing_fields"] == ["rera_number"]
