@@ -21,15 +21,16 @@ Built (see [docs/CHANGELOG.md](docs/CHANGELOG.md) for the history):
 - Contracts: Pydantic models for everything the pipeline passes around, plus exported JSON Schemas (section 6).
 - Print rules: print config and DPI maths (section 7).
 - Slots format, loader and the `classic-8pp` template (section 8).
-- LLM interface with a `FakeLLM` for tests (section 9). There is no real LLM client.
-- The pipeline graph (LangGraph) running on stub agents, with pause and resume for missing fields and for human review (section 3). The stubs return fixed sample data and make no LLM calls.
+- LLM interface with a `FakeLLM` for tests, and a real client for any OpenAI-compatible endpoint (Groq by default) (section 9).
+- The Brief agent is real: it fills empty form fields with facts the prompt states, using the LLM (section 3). The other agents are still stubs.
+- The pipeline graph (LangGraph), with pause and resume for missing fields and for human review (section 3). `stub_agents()` runs it with no LLM; `real_agents(llm)` swaps in the real Brief agent.
 - A fictional sample project, "Aurelia Heights" (section 10).
 - `brochure doctor`: checks Python, WeasyPrint, Ghostscript and bundled fonts. It is the only CLI command.
 - CI on GitHub Actions: runs the unit tests on pushes to `feature/**` and `fix/**` and on pull requests into `master`.
 
 Not built:
 
-- Real agents. Vision, Copywriter, Layout and the QA critic are stubs. The brief step converts the form to facts and ignores the prompt; it does not use an LLM.
+- Real agents other than Brief. Vision, Copywriter, Layout and the QA critic are stubs.
 - The image tools. They are not in the graph yet.
 - The renderer (HTML to PDF, bleed, crop marks, CMYK). The stub returns fake file paths and creates no files.
 - Export. The stub does nothing.
@@ -60,7 +61,7 @@ flowchart TD
 
 | Step | What it does | Today |
 |---|---|---|
-| 1. Brief agent | Turns the form and the prompt into `ProjectFacts`. Lists required fields that are missing in `missing_fields` so the user can be asked. | Real code for form to facts and the question loop (bad answers are asked again); no LLM, prompt unused. |
+| 1. Brief agent | Turns the form and the prompt into `ProjectFacts`. Lists required fields that are missing in `missing_fields` so the user can be asked. | Real. `real_agents(llm)` runs the Brief agent (one LLM call) before the form-to-facts conversion and the question loop (bad answers are asked again). `stub_agents()` skips the LLM and uses the form only. |
 | 2. Vision agent | Runs in parallel with step 1. Describes each photo as an `ImageTag` (kind, subject, quality, focal point). | Stub: returns the 12 sample image tags. |
 | 3. Image tools | Plain code, not an agent. For each image: crops it to its slot's aspect ratio around the focal point, fixes exposure, runs the DPI check, and upscales by at most 2x. Low-resolution images are flagged and limited to small slots. Planned, not built. | Not built, not in the graph. |
 | 4. Copywriter | Writes the text for each text slot, within its `char_budget`. | Stub: sample text, within each `char_budget`. |
@@ -139,6 +140,26 @@ print(graph.get_state(config).next)  # empty: the run has finished
 ()
 ```
 
+### The Brief agent
+
+`src/brochure/agents/brief.py`. `brief_agent(brief, llm) -> BriefForm` makes one `brief.extract` call with the form
+(empty fields included) and the prompt. The prompt text is in `src/brochure/agents/prompts/brief_extract.md`. The merge
+is done in code, not by the model:
+
+- **Form wins.** The model may only fill fields that are empty in the form (null, blank, or an empty list; a list is
+  filled whole or not at all).
+- **Grounding.** Every string it fills must appear in the prompt (ignoring case and spacing) and every number it fills
+  must appear in the prompt as a number (`1,090` counts as 1090). `rera_number` must appear in the prompt character for
+  character. A value that fails is dropped (and logged at INFO); in a list, only that item is dropped. This includes
+  `tone_notes`, so the model is told to copy the user's words for it. Numbers written as words ("two") are not found.
+- **Fallback.** A reply that fails validation is retried once with the validation error in the message. If it fails
+  again, or the client raises `LLMRateLimited` / `LLMError`, the form is returned unchanged and a warning is logged.
+  The missing-fields question then asks the user, exactly as with the stubs. The run never crashes on an LLM failure.
+
+The brief node saves the form the Brief agent returns into the run (`BriefOutcome.form`), so the question loop works
+on the merged form. Because the brief step runs again after the user answers, a run that asks a question makes two
+`brief.extract` calls.
+
 Run the pipeline tests. They use the in-memory checkpointer and a temporary SQLite file, and they fail if anything
 opens a network connection or calls the `FakeLLM`:
 
@@ -160,11 +181,13 @@ src/brochure/
   dpi.py                      min_pixels, effective_dpi, classify_dpi
   slots.py                    load slots.json, compute min_px
   contracts/                  Pydantic models and the schema export
-  llm/                        LLMClient, FakeLLM, Agent protocol
-  pipeline/                   LangGraph graph, stub agents, checkpointers
+  llm/                        LLMClient, FakeLLM, OpenAICompatibleClient, Agent protocol
+  agents/                     real agents (Brief) and their prompt files
+  pipeline/                   LangGraph graph, stub agents, real_agents, checkpointers
 templates/classic-8pp/        slots.json for the 8-page template (no HTML/CSS yet)
 tests/unit/                   fast tests, no network
 tests/integration/            tests that need WeasyPrint or Ghostscript
+tests/llm/                    tests that call the real model (marker `llm`, skipped without a key)
 tools/                        export_schemas.py, make_sample_images.py
 README.md                     this file
 CONTRIBUTING.md               setup, TDD rules, branching rules
@@ -190,12 +213,12 @@ Run the tests:
 
 ```
 ~/.venvs/brochure/bin/python -m pytest                       # everything
-~/.venvs/brochure/bin/python -m pytest -m "not integration"  # what CI runs
+~/.venvs/brochure/bin/python -m pytest -m "not integration and not llm"  # what CI runs
 ~/.venvs/brochure/bin/python -m pytest -rs                   # also print the reason for every skip
 ```
 
-With Ghostscript and Pango installed, expect every test to pass and nothing to be skipped. Without them, the
-integration tests skip with a stated reason. A skip is never meant to look like a pass.
+With Ghostscript and Pango installed and no `LLM_API_KEY` set, expect every test to pass except the one live LLM
+test, which skips with its reason. Without them, the integration tests skip with a stated reason too. A skip is never meant to look like a pass.
 
 Generate the sample images (they are git-ignored):
 
@@ -315,14 +338,54 @@ and the slot's comment says so.
 `src/brochure/llm/` has:
 
 - `LLMClient`: a protocol with `complete(task, payload, images=None) -> dict`. `task` names the agent step, for
-  example `"vision.tag"`. There is no real client yet.
+  example `"brief.extract"`.
+- `OpenAICompatibleClient`: the real client, on the `openai` SDK pointed at any OpenAI-compatible base URL. The task
+  name selects a system prompt and an optional JSON Schema (`brochure.agents.TASKS`). Temperature is 0. On a model that
+  supports strict structured outputs it sends `response_format: json_schema` with `strict: true`; on any other model it
+  sends JSON-object mode with the schema in the system message. Either way the reply is parsed to a dict and the caller
+  validates it. HTTP 429 is retried (3 attempts in all, waiting for `Retry-After`, else 1 s then 2 s, at most 60 s),
+  then `LLMRateLimited` is raised. Other HTTP errors, timeouts and connection failures raise `LLMError`; a reply that
+  is not a JSON object raises `LLMBadReply` (an `LLMError`). The API key is never put in an error message or a log.
+  `images=` raises `NotImplementedError` for now.
 - `FakeLLM`: returns canned responses keyed by task, records every call (`llm.calls`), and raises
   `MissingCannedResponse` naming the task when it has no answer.
 - `Agent[I, O]`: a typing-only protocol. An agent is a function `(inputs, llm) -> schema object`. The stub agents are in
-  `src/brochure/pipeline/stubs.py`; there are no real agents.
+  `src/brochure/pipeline/stubs.py`; the one real agent is the Brief agent in `src/brochure/agents/brief.py`.
 
-Unit tests never touch the network. Anything that would call a model uses `FakeLLM`. The `llm` pytest marker is
-reserved for tests that call a real model and is not used by any test yet.
+Unit tests never touch the network. Anything that would call a model uses `FakeLLM` (or the real client over a fake
+HTTP transport). The `llm` pytest marker is for tests that call a real model; CI excludes it.
+
+### Configuring the LLM
+
+The real client is configured by three environment variables. Only the key is required.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `LLM_API_KEY` | none | The provider's API key. |
+| `LLM_BASE_URL` | `https://api.groq.com/openai/v1` | Any OpenAI-compatible base URL. |
+| `LLM_MODEL` | `openai/gpt-oss-120b` | A model on that provider. Groq documents this one as supporting strict `json_schema`. |
+
+`.env.example` lists the names with no values; copy it to `.env` (git-ignored) and fill it in. The program reads
+`os.environ` only, so export the values into your shell first (`set -a; . ./.env; set +a`).
+
+To get a free Groq key, sign in at https://console.groq.com and create a key under API Keys. Rate limits depend on your
+plan (see Groq's rate-limits page); the client waits and retries on HTTP 429 and gives up after three attempts.
+
+```python
+from brochure.agents import llm_from_env
+from brochure.pipeline import build_graph, memory_checkpointer, real_agents
+
+llm = llm_from_env()
+graph = build_graph(real_agents(llm), memory_checkpointer(), llm)
+```
+
+Run the live test (it calls the real model on `sample/brief_sparse.json` and checks properties only):
+
+```
+~/.venvs/brochure/bin/python -m pytest -m llm -rs
+```
+
+Without `LLM_API_KEY` it skips with that reason.
 
 This example was run from the repo root:
 
@@ -363,6 +426,7 @@ placeholder (`P99999000000 (SAMPLE)`).
 |---|---|
 | `sample/brand_kit.json` | A `BrandKit`. |
 | `sample/brief.json` | A `Brief`. The form is complete, so it converts to `ProjectFacts` unchanged. |
+| `sample/brief_sparse.json` | The same project with a form that leaves out the RERA number, the configurations, the possession date and the tone, which the prompt states in words, and the location, which the prompt does not mention. For the Brief agent. |
 | `sample/images.json` | An `ImageManifest` of 12 images with pixel sizes and the slot each is meant for. |
 | `sample/logo.svg` | The logo the brand kit points to. |
 | `sample/stub_copy.json` | Text for the eight copy slots that cannot be derived from the facts or the brand kit; used by the stub copywriter. |
@@ -416,7 +480,8 @@ Full rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
 - Apart from the full-page hero, the slot sizes are placeholders.
 - The 25 mm QR size is provisional.
 - `PipelineState` has no field for the text of a chat edit, so `changes_requested` re-runs layout with no instructions.
-- The stub pipeline is hard-wired to `classic-8pp` and the sample files. The brief step ignores the prompt.
+- The stub pipeline is hard-wired to `classic-8pp` and the sample files.
+- The Brief agent was written against Groq's documentation and tested with fakes. The live test has to be run with a key to confirm the provider accepts the schema.
 - The image tools are not in the graph.
 - `brochure doctor` fails the fonts check because `assets/fonts` (Playfair Display, Inter) is not in the repo.
 - `jinja2`, `qrcode` and `pypdf` are declared in `pyproject.toml` but nothing in the code uses them yet. WeasyPrint

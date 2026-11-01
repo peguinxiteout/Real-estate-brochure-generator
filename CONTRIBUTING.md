@@ -30,18 +30,19 @@ Generate the sample images once (they are git-ignored):
 ~/.venvs/brochure/bin/python -m pytest -rs                   # also print the reason for every skip
 ```
 
-CI (`.github/workflows/tests.yml`) runs the unit suite (`python -m pytest -m "not integration"`) on every push to a `feature/**` or `fix/**` branch and on every pull request into `master`. A failing `tests` check blocks a merge.
+CI (`.github/workflows/tests.yml`) runs the unit suite (`python -m pytest -m "not integration and not llm"`) on every push to a `feature/**` or `fix/**` branch and on every pull request into `master`. A failing `tests` check blocks a merge.
 
 Markers (registered in `pyproject.toml`; unknown markers are an error):
 
 | Marker | Meaning |
 |---|---|
 | `integration` | Needs a real external tool (WeasyPrint, Ghostscript). Must skip with a clear reason when the tool is missing; a skip must never look like a pass. |
-| `llm` | Calls a real LLM (network, API key). Never in unit tests. Deselect with `-m "not llm"`. |
+| `llm` | Calls a real LLM (network, API key). Never in unit tests, and CI excludes it (it has no key and no network). Lives in `tests/llm/`, skips with a reason when `LLM_API_KEY` is not set, and is run by hand with `python -m pytest -m llm -rs`. Deselect with `-m "not llm"`. |
 | `slow` | Takes more than a second or two. |
 
 **Unit tests never touch the network.** Anything that would call a model uses `FakeLLM` (`brochure.llm`), which returns
-canned answers keyed by task and records every call.
+canned answers keyed by task and records every call. The real client is tested over a fake HTTP transport. Never print or
+commit an API key: keys live in the environment (`.env` is git-ignored; `.env.example` lists the names).
 
 ## Test-driven development
 
