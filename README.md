@@ -60,7 +60,7 @@ flowchart TD
 
 | Step | What it does | Today |
 |---|---|---|
-| 1. Brief agent | Turns the form and the prompt into `ProjectFacts`. Lists required fields that are missing in `missing_fields` so the user can be asked. | Real code for form to facts and the question loop; no LLM, prompt unused. |
+| 1. Brief agent | Turns the form and the prompt into `ProjectFacts`. Lists required fields that are missing in `missing_fields` so the user can be asked. | Real code for form to facts and the question loop (bad answers are asked again); no LLM, prompt unused. |
 | 2. Vision agent | Runs in parallel with step 1. Describes each photo as an `ImageTag` (kind, subject, quality, focal point). | Stub: returns the 12 sample image tags. |
 | 3. Image tools | Plain code, not an agent. For each image: crops it to its slot's aspect ratio around the focal point, fixes exposure, runs the DPI check, and upscales by at most 2x. Low-resolution images are flagged and limited to small slots. Planned, not built. | Not built, not in the graph. |
 | 4. Copywriter | Writes the text for each text slot, within its `char_budget`. | Stub: sample text, within each `char_budget`. |
@@ -80,7 +80,9 @@ files in `sample/` (including `sample/stub_copy.json`), make no LLM calls and re
 
 - Brief and vision start in parallel; the copywriter starts when both are done. If the brief has missing required
   fields, the run pauses at `ask_user` with `missing_fields` set. The caller resumes with the values, for example
-  `Command(resume={"rera_number": "..."})`, and the brief step runs again.
+  `Command(resume={"rera_number": "..."})`. Each answered field that is valid is kept; a field that is not (unknown,
+  wrong type, blank, or still failing `ProjectFacts`) is refused and the question is asked again. Nothing raises. The
+  brief step runs again when nothing is missing.
 - After the renderer, the QA step runs. An issue routed to `copywriter` sends the run back to the copywriter (then
   layout, render, QA); one routed to `layout` goes back to layout; one routed to `none` does not loop. After 3 QA
   passes the run moves on whatever the issues say. Issues that do not loop, and any left after the 3rd pass, are
@@ -88,6 +90,19 @@ files in `sample/` (including `sample/stub_copy.json`), make no LLM calls and re
 - `human_review` pauses. The caller resumes with `"approved"` (the run goes to export and ends) or
   `"changes_requested"` (back through layout, render and QA to review; `qa_round` restarts at 0). Any other answer is
   asked again.
+- What the caller sees when the run pauses (`graph.get_state(config).tasks[0].interrupts[0].value`):
+
+  ```
+  missing fields:  {"ask": "brief", "missing_fields": ["rera_number"], "errors": {}}
+  after a bad one: {"ask": "brief", "missing_fields": ["rera_number"], "errors": {"rera_number": "must not be empty"}}
+  review:          {"ask": "review", "pdf_path": "...", "page_images": ["...", ...], "error": null}
+  after a bad one: {"ask": "review", "pdf_path": "...", "page_images": [...], "error": "answer 'approved' or 'changes_requested', not 'maybe'"}
+  ```
+
+  `errors` maps a field name to a short message; an unknown field is keyed by the name it was sent under (message
+  "unknown field"), and an answer that is not an object is keyed "answer". `missing_fields` lists what is still
+  missing after the valid part of the last answer was applied. If nothing is missing but an error was reported,
+  resume with `{}` to carry on.
 - Checkpointers are passed in: `memory_checkpointer()` for tests, `sqlite_checkpointer(path)` for runs that must
   survive a restart.
 
@@ -402,7 +417,6 @@ Full rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
 - The 25 mm QR size is provisional.
 - `PipelineState` has no field for the text of a chat edit, so `changes_requested` re-runs layout with no instructions.
 - The stub pipeline is hard-wired to `classic-8pp` and the sample files. The brief step ignores the prompt.
-- A bad answer to the missing-fields question (a value that fails validation) raises an error instead of asking again. A bad review answer is asked again.
 - The image tools are not in the graph.
 - `brochure doctor` fails the fonts check because `assets/fonts` (Playfair Display, Inter) is not in the repo.
 - `jinja2`, `qrcode` and `pypdf` are declared in `pyproject.toml` but nothing in the code uses them yet. WeasyPrint
