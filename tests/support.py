@@ -9,13 +9,14 @@ from brochure.contracts.state import PipelineState
 ROOT = Path(__file__).parents[1]
 
 
-def sample_state(*, briefed: bool = True, **form_changes) -> PipelineState:
+def sample_state(*, briefed: bool = True, brief_file: str = "brief.json", **form_changes) -> PipelineState:
     """The Aurelia Heights sample as a PipelineState.
 
-    briefed=True sets project_facts, as it is after the brief step. form_changes override fields of the brief form.
+    briefed=True sets project_facts, as it is after the brief step. brief_file picks the brief in sample/.
+    form_changes override fields of the brief form.
     """
     brand = BrandKit.model_validate(json.loads((ROOT / "sample" / "brand_kit.json").read_text(encoding="utf-8")))
-    brief = Brief.model_validate(json.loads((ROOT / "sample" / "brief.json").read_text(encoding="utf-8")))
+    brief = Brief.model_validate(json.loads((ROOT / "sample" / brief_file).read_text(encoding="utf-8")))
     brief = brief.model_copy(update={"form": brief.form.model_copy(update=form_changes)})
     facts = ProjectFacts.model_validate(brief.form.model_dump()) if briefed else None
     return PipelineState(
@@ -24,15 +25,15 @@ def sample_state(*, briefed: bool = True, **form_changes) -> PipelineState:
 
 
 class Run:
-    """One pipeline run: a graph, its thread config, and a FakeLLM that must never be called."""
+    """One pipeline run: a graph, its thread config, and a FakeLLM (empty unless `llm` is given)."""
 
     created: list["Run"] = []  # every Run made, so a test fixture can check them all
 
-    def __init__(self, agents=None, checkpointer=None, thread_id="run-1"):
+    def __init__(self, agents=None, checkpointer=None, thread_id="run-1", llm=None):
         from brochure.llm import FakeLLM
         from brochure.pipeline import build_graph, memory_checkpointer, stub_agents
 
-        self.llm = FakeLLM({})
+        self.llm = llm or FakeLLM({})
         self.graph = build_graph(agents or stub_agents(), checkpointer or memory_checkpointer(), self.llm)
         self.config = {"configurable": {"thread_id": thread_id}}
         Run.created.append(self)
