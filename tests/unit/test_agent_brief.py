@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from brochure.agents.brief import brief_agent
+from brochure.agents.brief import PROMPT_FILE, TASK_SPEC, brief_agent
 from brochure.contracts.project import Brief, BriefForm
 from brochure.llm import FakeLLM, LLMBadReply, LLMError, LLMRateLimited
 
@@ -174,3 +174,46 @@ def test_an_error_on_the_retry_also_falls_back_to_the_form():
     llm = Script(INVALID, LLMError("HTTP 503"))
     brief = sparse()
     assert brief_agent(brief, llm) == brief.form
+
+
+def objects_in(schema):
+    """Every JSON Schema object node in a schema, including those under $defs."""
+    if isinstance(schema, dict):
+        if schema.get("type") == "object":
+            yield schema
+        for value in schema.values():
+            yield from objects_in(value)
+    elif isinstance(schema, list):
+        for value in schema:
+            yield from objects_in(value)
+
+
+def keys_in(schema):
+    if isinstance(schema, dict):
+        yield from schema
+        for value in schema.values():
+            yield from keys_in(value)
+    elif isinstance(schema, list):
+        for value in schema:
+            yield from keys_in(value)
+
+
+def test_the_task_spec_pairs_the_prompt_file_with_a_schema_over_the_form_fields():
+    spec = TASK_SPEC
+    assert spec.system == PROMPT_FILE.read_text(encoding="utf-8").strip()
+    assert set(spec.schema["properties"]) == set(BriefForm.model_fields)
+
+
+def test_the_schema_meets_the_strict_structured_output_rules():
+    schema = TASK_SPEC.schema
+    assert len(list(objects_in(schema))) == 4  # the reply, and its configuration, specification and landmark items
+    for node in objects_in(schema):
+        assert node["additionalProperties"] is False
+        assert sorted(node["required"]) == sorted(node["properties"])  # every property is required (null for none)
+    assert "default" not in set(keys_in(schema))  # pydantic's defaults are not part of a strict schema
+
+
+def test_the_prompt_file_states_the_extraction_rules():
+    text = PROMPT_FILE.read_text(encoding="utf-8").lower()
+    for rule in ["explicitly", "null", "never guess", "rera", "character for character", "user's own wording", "tone_notes", "form always wins"]:
+        assert rule in text

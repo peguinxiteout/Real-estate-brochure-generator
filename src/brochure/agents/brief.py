@@ -48,6 +48,27 @@ class Extraction(_Reply):
     tone_notes: str | None = None
 
 
+def _strict_schema() -> dict:
+    """The JSON Schema of Extraction in the form strict structured outputs accept: no defaults or titles, every
+    property required (a value the prompt does not state is null or [], not absent), no extra properties."""
+
+    def tidy(node):
+        if isinstance(node, dict):
+            node = {k: tidy(v) for k, v in node.items() if k not in ("default", "title")}
+            if node.get("type") == "object" and "properties" in node:
+                node["required"] = list(node["properties"])
+                node["additionalProperties"] = False
+            return node
+        if isinstance(node, list):
+            return [tidy(v) for v in node]
+        return node
+
+    return tidy(Extraction.model_json_schema())
+
+
+TASK_SPEC = TaskSpec(system=PROMPT_FILE.read_text(encoding="utf-8").strip(), schema=_strict_schema())
+
+
 def _squash(text: str) -> str:
     return " ".join(text.split()).casefold()
 
