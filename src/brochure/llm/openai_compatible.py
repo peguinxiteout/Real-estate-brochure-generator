@@ -1,5 +1,6 @@
 """LLMClient for any OpenAI-compatible chat completions endpoint (Groq by default)."""
 import json
+import os
 import time
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -105,3 +106,21 @@ class OpenAICompatibleClient:
         if spec.schema is not None:
             parts.append(f"It must match this JSON Schema:\n{json.dumps(spec.schema)}")
         return "\n\n".join(parts), {"type": "json_object"}
+
+
+DEFAULT_BASE_URL = "https://api.groq.com/openai/v1"
+DEFAULT_MODEL = "openai/gpt-oss-120b"
+
+
+def client_from_env(tasks: Mapping[str, TaskSpec], environ: Mapping[str, str] | None = None) -> OpenAICompatibleClient:
+    """A client from LLM_BASE_URL, LLM_API_KEY and LLM_MODEL (os.environ unless `environ` is given).
+
+    The base URL and the model have defaults (Groq); the key does not.
+    """
+    env = os.environ if environ is None else environ
+    api_key = (env.get("LLM_API_KEY") or "").strip()
+    if not api_key:
+        raise LLMError("LLM_API_KEY is not set. Put your key in the environment (see .env.example); it is never read from a file by this program.")
+    base_url = (env.get("LLM_BASE_URL") or "").strip() or DEFAULT_BASE_URL
+    model = (env.get("LLM_MODEL") or "").strip() or DEFAULT_MODEL
+    return OpenAICompatibleClient(base_url, api_key, model, tasks)

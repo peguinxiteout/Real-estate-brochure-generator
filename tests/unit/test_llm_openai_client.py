@@ -5,7 +5,7 @@ import httpx
 import pytest
 
 from brochure.llm.errors import LLMBadReply, LLMError, LLMRateLimited
-from brochure.llm.openai_compatible import OpenAICompatibleClient
+from brochure.llm.openai_compatible import DEFAULT_MODEL, STRICT_SCHEMA_MODELS, OpenAICompatibleClient, client_from_env
 from brochure.llm.tasks import TaskSpec
 
 BASE_URL = "https://llm.example.test/v1"
@@ -177,3 +177,22 @@ def test_the_api_key_is_never_logged_or_shown_in_the_client_repr(caplog):
         make_client(Transport(httpx.Response(500, json={}))).complete("brief.extract", {})
     assert API_KEY not in caplog.text
     assert API_KEY not in repr(client) and API_KEY not in str(vars(client))
+
+
+def test_the_factory_reads_the_three_env_vars():
+    env = {"LLM_BASE_URL": "https://other.example/v1", "LLM_API_KEY": API_KEY, "LLM_MODEL": "some/model"}
+    client = client_from_env(TASKS, env)
+    assert (client.base_url, client.model) == ("https://other.example/v1", "some/model")
+
+
+def test_the_factory_defaults_to_groq_and_a_production_model_with_strict_schemas():
+    client = client_from_env(TASKS, {"LLM_API_KEY": API_KEY})
+    assert client.base_url == "https://api.groq.com/openai/v1"
+    assert client.model == DEFAULT_MODEL == "openai/gpt-oss-120b"
+    assert client.model in STRICT_SCHEMA_MODELS
+
+
+@pytest.mark.parametrize("env", [{}, {"LLM_API_KEY": ""}, {"LLM_API_KEY": "   "}])
+def test_the_factory_without_an_api_key_says_which_variable_to_set(env):
+    with pytest.raises(LLMError, match="LLM_API_KEY"):
+        client_from_env(TASKS, env)
