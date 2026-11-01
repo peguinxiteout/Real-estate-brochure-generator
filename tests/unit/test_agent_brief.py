@@ -217,3 +217,38 @@ def test_the_prompt_file_states_the_extraction_rules():
     text = PROMPT_FILE.read_text(encoding="utf-8").lower()
     for rule in ["explicitly", "null", "never guess", "rera", "character for character", "user's own wording", "tone_notes", "form always wins"]:
         assert rule in text
+
+
+def test_the_real_client_wired_to_the_agent_sends_the_prompt_file_and_schema_and_fills_the_form():
+    import httpx
+
+    from brochure.agents import TASKS
+    from brochure.llm import OpenAICompatibleClient
+
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        content = json.dumps(STATED)
+        return httpx.Response(200, json={"id": "x", "object": "chat.completion", "created": 0, "model": "m", "choices": [
+            {"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": content}}]})
+
+    client = OpenAICompatibleClient(
+        "https://llm.example.test/v1", "k", "openai/gpt-oss-120b", TASKS,
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    brief = sparse()
+    form = brief_agent(brief, client)
+
+    assert form.possession == "December 2028"
+    body = seen[0]
+    assert body["messages"][0]["content"] == TASK_SPEC.system
+    assert body["response_format"]["json_schema"]["schema"] == TASK_SPEC.schema
+    assert json.loads(body["messages"][1]["content"]) == {"form": brief.form.model_dump(), "prompt": brief.prompt}
+
+
+def test_llm_from_env_builds_a_client_that_knows_the_agents_tasks():
+    from brochure.agents import llm_from_env
+
+    client = llm_from_env({"LLM_API_KEY": "k"})
+    assert set(client.tasks) == {"brief.extract"}
