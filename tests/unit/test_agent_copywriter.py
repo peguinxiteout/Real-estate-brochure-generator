@@ -11,7 +11,7 @@ from brochure.contracts.images import ImageTag
 from brochure.llm import FakeLLM, LLMBadReply, LLMError, LLMRateLimited
 from brochure.pipeline import load_sample_data
 from brochure.verbatim import VERBATIM_SLOTS
-from tests.support import qa_issue, sample_state
+from tests.support import GOOD_COPY as GOOD, qa_issue, sample_state
 
 ROOT = Path(__file__).parents[2]
 TEMPLATE = load_sample_data().template
@@ -19,21 +19,6 @@ OWNED = {
     "cover_title": 40, "cover_tagline": 90, "overview_headline": 60, "overview_intro": 600, "overview_highlights": 240,
     "amenities_blurb": 250, "plan_note": 160, "about_headline": 60,
 }
-
-# Copy that passes every check for the sample project.
-GOOD = {
-    "cover_title": "Aurelia Heights",
-    "cover_tagline": "Light, air and green space, a short walk from the metro.",
-    "overview_headline": "Homes designed around light and open space",
-    "overview_intro": "Aurelia Heights is a pair of residential towers in Pune with 2 and 3 BHK homes. The towers stand around a "
-    "landscaped podium garden, and the plans put living rooms and bedrooms on the sides with the most daylight. The metro "
-    "station, schools and a hospital are close by, so the daily routine stays short.",
-    "overview_highlights": "Two towers of 2 and 3 BHK homes\nLandscaped podium garden\nShort walk to the metro\nSchools and a hospital nearby",
-    "amenities_blurb": "From the infinity pool to the co-working lounge, every amenity is planned for daily use rather than for show.",
-    "plan_note": "Areas shown are carpet areas. Furniture in the plans is indicative only.",
-    "about_headline": "About Kestrel Urbanscapes",
-}
-
 
 def inputs(**changes) -> CopyInputs:
     state = sample_state()
