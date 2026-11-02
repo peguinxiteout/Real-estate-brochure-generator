@@ -165,7 +165,7 @@ on the merged form. Because the brief step runs again after the user answers, a 
 `src/brochure/agents/copywriter.py`. `copywriter_agent(inputs, llm) -> dict[slot_id, str]` makes one `copy.write` call.
 The prompt is `src/brochure/agents/prompts/copy_write.md`; the reply schema is strict, with one required string
 property per owned slot (it says nothing about length; the code checks that). The model is sent only: the
-`ProjectFacts` (without the tone), the company name, each image's `subject` and `features` (no paths), the tone notes,
+`ProjectFacts` (without the tone), the company name, each image's `kind`, `subject` and `features` (no paths), the tone notes,
 the owned slots (`id`, `page`, `char_budget`, `comment`) and, when the QA loop sent the run back, the QA issues routed to
 the copywriter. Facts are strict, wording is free.
 
@@ -187,6 +187,8 @@ The pipeline step (`pipeline/real.py`) returns the verbatim slots plus whatever 
   non-breaking space counts as one number.
 - Names: every capitalised word that does not start a sentence or a line must appear (any case) in the facts, in the
   brand kit's `company_name`, or in the allow-list. This also rejects headlines in Title Case.
+- Text is normalised first, in the checks and in the returned copy: any Unicode space separator (U+202F, U+00A0,
+  U+2009, ...) becomes a plain space, and U+2010 and U+2011 become `-`. Curly quotes and apostrophes are kept.
 - Money: currency symbols and words (`copy_money_words.txt`), as whole words.
 - Superlatives and promises: `copy_banned_phrases.txt`, as whole words or phrases ("bestow" is fine).
 
@@ -195,8 +197,14 @@ The three lists are data files in `src/brochure/agents/data/` (`copy_name_allowl
 
 **Retry and fallback.** If any slot fails, the model is asked once more with only the failing slots and the reason for
 each; slots that passed keep their first text whatever the second reply says. A slot that still fails is left out of
-the result and one warning lists it with its reasons. A client error (`LLMRateLimited`, `LLMBadReply`, `LLMError`)
+the result and one warning lists it with its reasons. A reply that is not valid JSON (`LLMBadReply`) is asked for once more with the error, as the Brief agent does; a second
+one falls back like any other client error. A client error (`LLMRateLimited`, `LLMError`, or that second bad reply)
 stops the asking, keeps what already passed and logs one warning with the cause. The run never crashes on the model.
+
+**Wording rules that only the prompt enforces.** Only a render is an "artist's impression"; a photo is a photograph and a
+floor plan or a map is never called one. Each `overview_highlights` line states a fact from the project (a
+configuration, the location, the possession date, an amenity or a landmark), not a picture. No code check looks for
+either, so the live test reads the copy (it asserts only that `plan_note` does not say "artist").
 
 **Missing copy.** The layout stub puts the visible text `[copy needed: <slot_id>]` in any text slot with no copy, so the
 reviewer sees the gap (the QA critic will later flag these placeholders).
@@ -545,7 +553,7 @@ Full rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
 - The Brief agent was written against Groq's documentation and tested with fakes. The live test has to be run with a key to confirm the provider accepts the schema.
 - The image tools are not in the graph.
 - The Copywriter's prompt cannot make a model count characters; a long slot is fixed by the retry, and a slot that fails twice shows `[copy needed: ...]`.
-- Models write typographic characters (a narrow no-break space in "780 sq ft", a non-breaking hyphen in "co-working"). Check that the fonts have those glyphs when the renderer exists.
+- The copy keeps curly quotes and apostrophes and en and em dashes; check that the fonts have those glyphs when the renderer exists. Typographic spaces and hyphens are normalised to plain ones.
 - The Copywriter does not see the brief's free-text prompt, so the user's emphasis (for example "the short walk to the station") does not reach the copy.
 - `brochure doctor` fails the fonts check because `assets/fonts` (Playfair Display, Inter) is not in the repo.
 - `jinja2`, `qrcode` and `pypdf` are declared in `pyproject.toml` but nothing in the code uses them yet. WeasyPrint
