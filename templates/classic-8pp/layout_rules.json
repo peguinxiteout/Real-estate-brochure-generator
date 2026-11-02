@@ -1,0 +1,17 @@
+{
+  "template_id": "classic-8pp",
+  "rules": [
+    {"slot": "hero", "kinds": ["render", "photo"], "keywords": ["tower", "facade", "exterior", "dusk"], "priority": 1},
+    {"slot": "overview_img", "kinds": ["render", "photo"], "keywords": ["aerial", "township", "towers", "green"], "priority": 2},
+    {"slot": "location_map", "kinds": ["map"], "keywords": ["map", "location", "metro"], "priority": 3},
+    {"slot": "spec_banner", "kinds": ["photo", "render"], "keywords": ["living room", "interior", "balcony", "sofa"], "priority": 4},
+    {"slot": "amenity_img_a", "kinds": ["render", "photo"], "keywords": ["pool", "amenity", "deck"], "priority": 5},
+    {"slot": "location_img", "kinds": ["photo", "render"], "keywords": ["street", "road", "gate", "trees"], "priority": 6},
+    {"slot": "spec_img", "kinds": ["photo", "render"], "keywords": ["kitchen", "bathroom", "bedroom", "interior"], "priority": 7},
+    {"slot": "plan_img_a", "kinds": ["floor_plan"], "keywords": ["2 bhk", "floor plan"], "priority": 8},
+    {"slot": "plan_img_b", "kinds": ["floor_plan"], "keywords": ["3 bhk", "floor plan"], "priority": 9},
+    {"slot": "amenity_img_b", "kinds": ["render", "photo"], "keywords": ["clubhouse", "lounge", "amenity"], "priority": 10},
+    {"slot": "amenity_img_c", "kinds": ["render", "photo"], "keywords": ["gym", "play area", "amenity"], "priority": 11},
+    {"slot": "about_img", "kinds": ["photo", "render"], "keywords": ["sales gallery", "office", "entrance", "signage"], "priority": 12}
+  ]
+}

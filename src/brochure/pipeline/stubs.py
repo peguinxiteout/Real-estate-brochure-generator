@@ -10,12 +10,12 @@ from brochure.contracts.spec import BrochureSpec, PageSpec, SlotFill
 from brochure.contracts.state import PipelineState
 from brochure.pipeline.brief import brief_step
 from brochure.pipeline.agents import Agents, RenderResult
+from brochure.layout import LOGO_SLOTS
 from brochure.slots import SlotTemplate, load_slots
 from brochure.verbatim import verbatim_copy
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TEMPLATE_ID = "classic-8pp"
-LOGO_SLOTS = ("cover_logo", "back_logo")
 SAMPLE_RERA_URL = "https://example.com/rera/sample"  # a fake address; the real one is not decided
 
 
@@ -63,23 +63,8 @@ def stub_agents(data: SampleData | None = None, qa=None) -> Agents:
         return {**data.copy, **verbatim_copy(state.project_facts, state.brand_kit)}
 
     def layout(state: PipelineState, llm) -> BrochureSpec:
-        image_for_slot = {e.intended_slot: e.filename for e in data.manifest.images}
-        fills: dict[int, dict[str, SlotFill]] = {n: {} for n in range(1, 9)}
-        for slot in data.template.slots:
-            empty = {"text": SlotFill(text=""), "image": SlotFill(image_path=""), "qr": SlotFill(qr_data="")}
-            fills[slot.page][slot.id] = empty[slot.type]
-            if slot.id in image_for_slot:
-                fills[slot.page][slot.id] = SlotFill(image_path=image_for_slot[slot.id])
-            if slot.type == "text":
-                fills[slot.page][slot.id] = SlotFill(text=state.slot_copy.get(slot.id, f"[copy needed: {slot.id}]"))  # visible, so a reviewer sees the gap
-            if slot.id == "rera_number":  # a legal fact: it comes from the facts, not from the copy
-                fills[slot.page][slot.id] = SlotFill(text=state.project_facts.rera_number)
-            if slot.type == "qr":
-                fills[slot.page][slot.id] = SlotFill(qr_data=SAMPLE_RERA_URL)
-            if slot.id in LOGO_SLOTS:
-                fills[slot.page][slot.id] = SlotFill(image_path=state.brand_kit.logo_path)
-        pages = [PageSpec(layout_id=f"{state.template_id}-p{n}", slots=fills[n]) for n in sorted(fills)]
-        return BrochureSpec(template_id=state.template_id, pages=pages)
+        """Every image in the slot the manifest intends it for."""
+        return layout_spec(state, data.template, {e.intended_slot: e.filename for e in data.manifest.images})
 
     def renderer(state: PipelineState, llm) -> RenderResult:
         """Renders nothing. Returns fake paths (FAKE-NOT-RENDERED/...), one PNG per page of the spec; no file exists."""
@@ -94,3 +79,25 @@ def stub_agents(data: SampleData | None = None, qa=None) -> Agents:
         return None
 
     return Agents(brief=brief_step, vision=vision, copywriter=copywriter, layout=layout, renderer=renderer, qa=qa or ScriptedQA(), export=export)
+
+
+def layout_spec(
+    state: PipelineState, template: SlotTemplate, image_for_slot: dict[str, str], qa_warnings: list[QAIssue] = ()
+) -> BrochureSpec:
+    """The spec: the given image in each image slot, the copy in each text slot, the brand kit's logo in both logo
+    slots and the RERA URL in the QR slot. A non-logo image slot with no image is left out of its page."""
+    fills: dict[int, dict[str, SlotFill]] = {n: {} for n in range(1, 9)}
+    for slot in template.slots:
+        if slot.type == "image" and slot.id not in LOGO_SLOTS:
+            if slot.id in image_for_slot:
+                fills[slot.page][slot.id] = SlotFill(image_path=image_for_slot[slot.id])
+        elif slot.id in LOGO_SLOTS:
+            fills[slot.page][slot.id] = SlotFill(image_path=state.brand_kit.logo_path)
+        elif slot.id == "rera_number":  # a legal fact: it comes from the facts, not from the copy
+            fills[slot.page][slot.id] = SlotFill(text=state.project_facts.rera_number)
+        elif slot.type == "text":  # a missing copy is visible, so a reviewer sees the gap
+            fills[slot.page][slot.id] = SlotFill(text=state.slot_copy.get(slot.id, f"[copy needed: {slot.id}]"))
+        elif slot.type == "qr":
+            fills[slot.page][slot.id] = SlotFill(qr_data=SAMPLE_RERA_URL)
+    pages = [PageSpec(layout_id=f"{state.template_id}-p{n}", slots=fills[n]) for n in sorted(fills)]
+    return BrochureSpec(template_id=state.template_id, pages=pages, qa_warnings=list(qa_warnings))

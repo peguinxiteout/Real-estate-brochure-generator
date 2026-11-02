@@ -1,0 +1,186 @@
+"""Image assignment for the Layout step: which project image goes in which image slot. Rule-based, no LLM, deterministic.
+
+The rules (accepted kinds, preferred subject keywords, the order in which slots pick) live in the template's
+layout_rules.json. They belong to the layout, not to the shared contracts.
+"""
+import math
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from brochure.contracts.images import ImageTag
+from brochure.contracts.qa import QAIssue
+from brochure.dpi import DpiStatus, classify_dpi, effective_dpi
+from brochure.print_config import PRINT
+from brochure.slots import ResolvedSlot, SlotTemplate
+
+LOGO_SLOTS = ("cover_logo", "back_logo")  # filled from the brand kit, never from the project's images
+
+Kind = Literal["photo", "render", "floor_plan", "map"]
+
+
+class SlotRule(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    slot: str
+    kinds: list[Kind] = Field(min_length=1)  # the image kinds this slot accepts
+    keywords: list[str] = []  # preferred words in an image's subject or features, any case
+    priority: int = Field(ge=1)  # slots pick in this order, 1 first
+
+
+class LayoutRules(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    template_id: str
+    rules: list[SlotRule]
+
+
+def load_layout_rules(path: Path) -> LayoutRules:
+    return LayoutRules.model_validate_json(Path(path).read_text(encoding="utf-8"))
+
+
+def rule_problems(rules: LayoutRules, template: SlotTemplate) -> list[str]:
+    """Why these rules do not fit the template; empty when every non-logo image slot has exactly one rule and every
+    rule names one of them."""
+    problems = []
+    if rules.template_id != template.template_id:
+        problems.append(f"the rules are for template {rules.template_id!r}, not {template.template_id!r}")
+    placeable = {s.id for s in template.slots if s.type == "image" and s.id not in LOGO_SLOTS}
+    named = [r.slot for r in rules.rules]
+    for slot_id in sorted(placeable - set(named)):
+        problems.append(f"image slot {slot_id!r} has no layout rule")
+    for slot_id in dict.fromkeys(named):
+        if slot_id not in placeable:
+            problems.append(f"rule for {slot_id!r}, which is not a non-logo image slot of the template")
+        elif named.count(slot_id) > 1:
+            problems.append(f"image slot {slot_id!r} has {named.count(slot_id)} layout rules")
+    priorities = [r.priority for r in rules.rules]
+    for priority in sorted({p for p in priorities if priorities.count(p) > 1}):
+        slots = ", ".join(r.slot for r in rules.rules if r.priority == priority)
+        problems.append(f"priority {priority} is given to more than one slot ({slots})")
+    return problems
+
+
+def fit(tag: ImageTag, slot: ResolvedSlot) -> tuple[float, DpiStatus]:
+    """The image's effective DPI in the slot (slot size with its bleed, as everywhere) and its band."""
+    dpi = effective_dpi(tag.width_px, tag.height_px, slot.bleed_width_mm, slot.bleed_height_mm)
+    return dpi, classify_dpi(dpi)
+
+
+def eligible(tag: ImageTag, slot: ResolvedSlot, rule: SlotRule) -> bool:
+    """The slot accepts the image's kind and the image is not below the DPI floor there."""
+    return tag.kind in rule.kinds and fit(tag, slot)[1] != DpiStatus.FAIL
+
+
+@dataclass(frozen=True)
+class ScoreWeights:
+    """How an eligible image is scored for a slot; higher is better. The terms are ordered so that one never
+    outweighs the one above it in practice: what the image shows first, then print quality, then cropping, then the
+    tag's quality grade."""
+
+    keyword: float = 100.0  # for each of the slot's preferred keywords found in the image's subject or features
+    dpi_pass: float = 20.0  # the image is at or above the 300 DPI target in this slot (warn band scores 0)
+    aspect: float = 10.0  # subtracted per unit of |ln(image ratio / slot ratio)|: 0 for the same shape
+    quality: tuple[tuple[str, float], ...] = (("good", 6.0), ("fair", 3.0), ("poor", 0.0))
+
+
+WEIGHTS = ScoreWeights()
+
+
+def score(tag: ImageTag, slot: ResolvedSlot, rule: SlotRule, weights: ScoreWeights = WEIGHTS) -> float:
+    """How well an eligible image suits the slot."""
+    _, band = fit(tag, slot)
+    return (
+        weights.keyword * len(matched_keywords(tag, rule))
+        + (weights.dpi_pass if band == DpiStatus.PASS else 0.0)
+        - weights.aspect * aspect_mismatch(tag, slot)
+        + dict(weights.quality)[tag.quality]
+    )
+
+
+def aspect_mismatch(tag: ImageTag, slot: ResolvedSlot) -> float:
+    """|ln(image ratio / slot ratio)|: 0 when the shapes match, the same for twice too wide as for twice too tall."""
+    return abs(math.log((tag.width_px / tag.height_px) / (slot.bleed_width_mm / slot.bleed_height_mm)))
+
+
+def matched_keywords(tag: ImageTag, rule: SlotRule) -> list[str]:
+    """The slot's preferred keywords that appear in the image's subject or features, ignoring case."""
+    text = " | ".join([tag.subject, *tag.features]).casefold()
+    return [k for k in rule.keywords if k.casefold() in text]
+
+
+@dataclass(frozen=True)
+class Placement:
+    slot_id: str
+    image: str  # the image's path, as in its tag
+    dpi: float
+    band: DpiStatus
+
+
+@dataclass(frozen=True)
+class Assignment:
+    placements: dict[str, Placement]  # slot id -> what goes there, in picking order; an unfilled slot is absent
+    findings: list[QAIssue]  # what the reviewer should know: unfilled slots, warn-band images, unused images
+
+
+def assign_images(template: SlotTemplate, rules: LayoutRules, tags: list[ImageTag]) -> Assignment:
+    """Slots pick in priority order; each takes its best-scoring eligible image not taken yet. Ties go to the image
+    whose path sorts first, so the result does not depend on the order of `tags`."""
+    slots = {s.id: s for s in template.slots}
+    placements: dict[str, Placement] = {}
+    findings: list[QAIssue] = []
+    taken: set[str] = set()
+    for rule in sorted(rules.rules, key=lambda r: r.priority):
+        slot = slots[rule.slot]
+        candidates = [t for t in tags if t.path not in taken and eligible(t, slot, rule)]
+        if not candidates:
+            # an error, not a warning: a slot is empty until the user supplies a better image
+            findings.append(_finding("layout.slot_unfilled", slot.page, _why_unfilled(slot, rule, tags, taken), "error"))
+            continue
+        best = min(candidates, key=lambda t: (-score(t, slot, rule), t.path))
+        dpi, band = fit(best, slot)
+        placements[slot.id] = Placement(slot.id, best.path, dpi, band)
+        if band == DpiStatus.WARN:
+            findings.append(_finding(
+                "layout.dpi_warn", slot.page,
+                f"{slot.id}: {best.path} is {_dpi_text(dpi)}, below the {PRINT.target_dpi} DPI target (it prints, softer)",
+            ))
+        taken.add(best.path)
+    for tag in sorted(tags, key=lambda t: t.path):
+        if tag.path not in taken:
+            findings.append(_finding("layout.image_unused", None, _why_unused(tag, rules, slots)))
+    return Assignment(placements, findings)
+
+
+def _finding(check: str, page: int | None, note: str, severity: str = "warning") -> QAIssue:
+    """A finding for the reviewer. route_to is always "none": no agent can fix it with the images it has."""
+    return QAIssue(check=check, page=page, severity=severity, note=note, route_to="none")
+
+
+def _dpi_text(dpi: float) -> str:
+    return f"{int(dpi)} DPI"  # rounded down, so 249.9 is never shown as 250
+
+
+def _why_unfilled(slot: ResolvedSlot, rule: SlotRule, tags: list[ImageTag], taken: set[str]) -> str:
+    kinds = " or ".join(rule.kinds)
+    of_kind = [t for t in tags if t.kind in rule.kinds]
+    if not of_kind:
+        return f"{slot.id}: no image of kind {kinds}"
+    too_small = sorted(((fit(t, slot)[0], t.path) for t in of_kind if t.path not in taken), key=lambda x: (-x[0], x[1]))
+    if not too_small:
+        return f"{slot.id}: every image of kind {kinds} that fits is used in another slot"
+    listed = ", ".join(f"{path} is {_dpi_text(dpi)}" for dpi, path in too_small)
+    return f"{slot.id}: no image of kind {kinds} with enough resolution; {listed}"
+
+
+def _why_unused(tag: ImageTag, rules: LayoutRules, slots: dict[str, ResolvedSlot]) -> str:
+    accepting = [slots[r.slot] for r in sorted(rules.rules, key=lambda r: r.priority) if tag.kind in r.kinds]
+    if not accepting:
+        return f"{tag.path} is not used: no slot accepts a {tag.kind}"
+    best_dpi, best_slot = max(((fit(tag, s)[0], s.id) for s in accepting), key=lambda x: x[0])
+    if classify_dpi(best_dpi) == DpiStatus.FAIL:
+        return (f"{tag.path} is not used: too small for every slot that accepts a {tag.kind} "
+                f"(at most {_dpi_text(best_dpi)}, in {best_slot}; {PRINT.warn_dpi} needed)")
+    return f"{tag.path} is not used: every slot it fits took a better image"
