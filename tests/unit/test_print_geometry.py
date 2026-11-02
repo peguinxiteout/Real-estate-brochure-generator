@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 
 from brochure.print_config import PRINT
@@ -89,3 +91,27 @@ def test_each_crop_mark_starts_5_mm_from_the_trim_edge_and_is_5_mm_long():
         assert distance_outside_trim(g.trim, m.x0, m.y0) == pytest.approx(5), m
         assert distance_outside_trim(g.trim, m.x1, m.y1) == pytest.approx(10), m
         assert m.length == pytest.approx(5), m
+
+
+def clear_of(box: Box, segment_bounds: Box) -> bool:
+    """No point of the segment is inside or on the edge of box."""
+    b = segment_bounds
+    return b.right < box.left or b.left > box.right or b.top < box.bottom or b.bottom > box.top
+
+
+def test_crop_marks_lie_outside_the_bleed_and_inside_the_media_box():
+    g = page_geometry_mm()
+    for m in g.crop_marks:
+        assert clear_of(g.bleed, m.bounds), m
+        assert g.media.contains(m.bounds), m
+
+
+@pytest.mark.parametrize("changes", [
+    {"crop_mark_offset_mm": 2},          # marks would start inside the bleed
+    {"crop_mark_offset_mm": 3},          # ... or touch the bleed edge
+    {"slug_beyond_bleed_mm": 5},         # marks would end 2 mm outside the media box
+    {"crop_mark_length_mm": 9},          # same, from a longer mark
+])
+def test_a_config_that_puts_crop_marks_in_the_bleed_or_off_the_media_is_refused(changes):
+    with pytest.raises(ValueError, match="crop mark"):
+        page_geometry_mm(replace(PRINT, **changes))

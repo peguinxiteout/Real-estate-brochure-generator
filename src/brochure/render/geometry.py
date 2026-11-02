@@ -87,11 +87,23 @@ def _crop_marks(trim: Box, near: float, far: float) -> tuple[Segment, ...]:
 def page_geometry_mm(config: PrintConfig = PRINT) -> PageGeometry:
     trim = Box(0, 0, config.page_width_mm, config.page_height_mm)
     near = config.crop_mark_offset_mm
+    far = near + config.crop_mark_length_mm
+    outside_trim = config.bleed_mm + config.slug_beyond_bleed_mm
+    if near <= config.bleed_mm:
+        raise ValueError(
+            f"crop marks must start outside the bleed: crop_mark_offset_mm ({near}) must be more than bleed_mm "
+            f"({config.bleed_mm})"
+        )
+    if far > outside_trim:
+        raise ValueError(
+            f"crop marks must end inside the media box: crop_mark_offset_mm + crop_mark_length_mm ({far}) must be at "
+            f"most bleed_mm + slug_beyond_bleed_mm ({outside_trim})"
+        )
     return PageGeometry(
-        media=trim.grown(config.bleed_mm + config.slug_beyond_bleed_mm),
+        media=trim.grown(outside_trim),
         bleed=trim.grown(config.bleed_mm),
         trim=trim,
-        crop_marks=_crop_marks(trim, near, near + config.crop_mark_length_mm),
+        crop_marks=_crop_marks(trim, near, far),
     )
 
 
