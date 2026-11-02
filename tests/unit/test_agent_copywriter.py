@@ -235,9 +235,8 @@ def test_no_warning_when_every_slot_passes(caplog):
 
 @pytest.mark.parametrize("error", [
     LLMRateLimited("rate limit still hit after 3 attempts"),
-    LLMBadReply("the model's reply is not valid JSON"),
     LLMError("HTTP 500 from the provider"),
-])
+])  # LLMBadReply is not here: it is asked once more, see below
 def test_a_client_error_on_the_first_call_gives_no_copy_and_one_warning_without_raising(error, caplog):
     copy, llm = play(error)
     assert copy == {}
@@ -365,3 +364,54 @@ def test_the_prompt_says_each_highlight_line_states_a_fact_from_the_project_not_
     rule = next(line for line in prompt.splitlines() if "overview_highlights" in line and line[0].isdigit())
     for word in ("fact", "configuration", "location", "possession", "amenity", "landmark", "picture"):
         assert word in rule
+
+
+# --- a reply that is not valid JSON is asked for once more, as the Brief agent does ----------------------------------------
+
+BAD = LLMBadReply("the model's reply is not valid JSON: '{\"cover_title\": '")
+
+
+def test_a_bad_reply_is_asked_again_once_with_the_error_and_the_second_reply_is_used(caplog):
+    copy, llm = play(BAD, GOOD)
+    assert len(llm.calls) == 2
+    assert copy == GOOD
+    first, second = llm.calls[0][1], llm.calls[1][1]
+    assert "previous_error" not in first
+    assert "not valid JSON" in second["previous_error"]
+    assert {k: v for k, v in second.items() if k != "previous_error"} == first
+    assert warnings(caplog) == []
+
+
+def test_a_second_bad_reply_falls_back_like_any_other_error_with_one_warning(caplog):
+    copy, llm = play(BAD, LLMBadReply("still not JSON"), GOOD)
+    assert copy == {}
+    assert len(llm.calls) == 2  # not a third
+    (message,) = warnings(caplog)
+    assert "still not JSON" in message and all(slot_id in message for slot_id in OWNED)
+
+
+def test_a_bad_reply_to_the_second_attempt_is_also_asked_again_and_keeps_the_problems_list():
+    copy, llm = play({**GOOD, "cover_title": TOO_LONG}, BAD, GOOD)
+    assert len(llm.calls) == 3
+    assert copy == GOOD
+    second, third = llm.calls[1][1], llm.calls[2][1]
+    assert third["problems"] == second["problems"] and "previous_error" in third
+    assert [s["id"] for s in third["slots"]] == ["cover_title"]
+
+
+def test_two_bad_replies_to_the_second_attempt_keep_what_passed_and_leave_the_rest_out(caplog):
+    copy, llm = play({**GOOD, "cover_title": TOO_LONG}, BAD, LLMBadReply("again"))
+    assert len(llm.calls) == 3
+    assert copy == {k: v for k, v in GOOD.items() if k != "cover_title"}
+    (message,) = warnings(caplog)
+    assert "cover_title" in message and "41 characters" in message and "again" in message
+
+
+def test_only_a_bad_reply_is_asked_again_a_rate_limit_or_http_error_is_not():
+    for error in (LLMRateLimited("rate limit"), LLMError("HTTP 500")):
+        _, llm = play(error, GOOD)
+        assert len(llm.calls) == 1
+
+
+def test_the_prompt_explains_previous_error():
+    assert "previous_error" in PROMPT_FILE.read_text(encoding="utf-8")

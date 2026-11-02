@@ -7,7 +7,7 @@ from brochure.agents.copy_checks import Known, known_from, normalise_text, probl
 from brochure.contracts.images import ImageTag
 from brochure.contracts.project import ProjectFacts
 from brochure.contracts.qa import QAIssue
-from brochure.llm import LLMClient, LLMError, TaskSpec
+from brochure.llm import LLMBadReply, LLMClient, LLMError, TaskSpec
 from brochure.slots import ResolvedSlot, SlotTemplate, load_slots
 from brochure.verbatim import VERBATIM_SLOTS
 
@@ -63,6 +63,15 @@ def _payload(inputs: CopyInputs, slots: list[ResolvedSlot]) -> dict:
     return payload
 
 
+def _ask(llm: LLMClient, payload: dict) -> dict:
+    """One call. A reply that is not valid JSON is asked for once more, with the error; a second one is raised."""
+    try:
+        return llm.complete(TASK, payload)
+    except LLMBadReply as error:
+        logger.info("the model's reply was not valid, asking once more: %s", error)
+        return llm.complete(TASK, {**payload, "previous_error": str(error)})
+
+
 def _judge(reply: dict, slots: list[ResolvedSlot], known: Known) -> tuple[dict[str, str], dict[str, list[str]]]:
     """Split a reply into the slots whose text passed every check (id -> text) and those that did not (id -> reasons)."""
     passed, failed = {}, {}
@@ -92,7 +101,7 @@ def copywriter_agent(inputs: CopyInputs, llm: LLMClient) -> dict[str, str]:
         if failed:
             payload["problems"] = {slot_id: "; ".join(reasons) for slot_id, reasons in failed.items()}
         try:
-            reply = llm.complete(TASK, payload)
+            reply = _ask(llm, payload)
         except LLMError as exc:  # the client has already retried what it can: do not ask again
             error = exc
             break

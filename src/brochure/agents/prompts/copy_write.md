@@ -7,6 +7,7 @@ You receive a JSON object with:
 - "tone_notes": the tone to write in. It may be empty.
 - "slots": the text slots to write. Each has "id", "page", "char_budget" (the most characters the text may have, spaces included) and sometimes a "comment" about the slot.
 - "problems" (only sometimes): slot ids, each with why your last text for that slot was rejected. Write those slots again and fix exactly that. For every other slot in your reply, give an empty string.
+- "previous_error" (only sometimes): your last reply was not valid JSON. Answer again with a valid JSON object.
 - "qa_issues" (only sometimes): problems the reviewer found in the brochure that the copy should fix, each with "page" and "note".
 
 Reply with one JSON object that has a string for every slot id in the schema, and nothing else.
