@@ -196,3 +196,32 @@ def test_an_image_placed_in_the_warn_band_is_a_warning_with_its_effective_dpi():
 def test_an_image_placed_in_the_pass_band_gives_no_dpi_warning():
     pairs = [(slot("s1"), rule("s1", priority=1))]
     assert findings(assign(pairs, [tag(path="a.jpg", width_px=PASS_PX[0], height_px=PASS_PX[1])]), "layout.dpi_warn") == []
+
+
+def test_an_image_too_small_for_every_slot_that_accepts_its_kind_is_an_unused_warning_with_its_best_dpi():
+    pairs = [(slot("big", width_mm=180, height_mm=90), rule("big", priority=1)),
+             (slot("small", page=7), rule("small", priority=2))]
+    tags = [tag(path="ok_big.jpg", width_px=2200, height_px=1100), tag(path="ok_small.jpg"),
+            tag(path="gym.jpg", kind="photo", width_px=800, height_px=545)]   # 230.7 DPI in "small", less in "big"
+    issue = one(assign(pairs, tags), "layout.image_unused")
+    assert (issue.severity, issue.route_to, issue.page) == ("warning", "none", None)
+    assert issue.note == "gym.jpg is not used: too small for every slot that accepts a photo (at most 230 DPI, in small; 250 needed)"
+
+
+def test_an_image_no_slot_accepts_is_an_unused_warning_saying_so():
+    pairs = [(slot("s1"), rule("s1", kinds=["render"], priority=1))]
+    issue = one(assign(pairs, [tag(path="a.jpg"), tag(path="plan.jpg", kind="floor_plan")]), "layout.image_unused")
+    assert issue.note == "plan.jpg is not used: no slot accepts a floor_plan"
+
+
+def test_an_image_that_fits_but_lost_to_better_ones_is_an_unused_warning_saying_so():
+    pairs = [(slot("s1"), rule("s1", keywords=["pool"], priority=1))]
+    issue = one(assign(pairs, [tag(path="pool.jpg", subject="pool"), tag(path="spare.jpg")]), "layout.image_unused")
+    assert issue.note == "spare.jpg is not used: every slot it fits took a better image"
+
+
+def test_unused_warnings_come_after_the_slot_warnings_in_path_order():
+    pairs = [(slot("s1"), rule("s1", kinds=["map"], priority=1))]
+    result = assign(pairs, [tag(path="b.jpg"), tag(path="a.jpg")])
+    assert [f.check for f in result.findings] == ["layout.slot_unfilled", "layout.image_unused", "layout.image_unused"]
+    assert [f.note.split()[0] for f in result.findings[1:]] == ["a.jpg", "b.jpg"]

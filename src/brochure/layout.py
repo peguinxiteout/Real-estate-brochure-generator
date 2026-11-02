@@ -147,6 +147,9 @@ def assign_images(template: SlotTemplate, rules: LayoutRules, tags: list[ImageTa
                 f"{slot.id}: {best.path} is {_dpi_text(dpi)}, below the {PRINT.target_dpi} DPI target (it prints, softer)",
             ))
         taken.add(best.path)
+    for tag in sorted(tags, key=lambda t: t.path):
+        if tag.path not in taken:
+            findings.append(_warning("layout.image_unused", None, _why_unused(tag, rules, slots)))
     return Assignment(placements, findings)
 
 
@@ -169,3 +172,14 @@ def _why_unfilled(slot: ResolvedSlot, rule: SlotRule, tags: list[ImageTag], take
         return f"{slot.id}: every image of kind {kinds} that fits is used in another slot"
     listed = ", ".join(f"{path} is {_dpi_text(dpi)}" for dpi, path in too_small)
     return f"{slot.id}: no image of kind {kinds} with enough resolution; {listed}"
+
+
+def _why_unused(tag: ImageTag, rules: LayoutRules, slots: dict[str, ResolvedSlot]) -> str:
+    accepting = [slots[r.slot] for r in sorted(rules.rules, key=lambda r: r.priority) if tag.kind in r.kinds]
+    if not accepting:
+        return f"{tag.path} is not used: no slot accepts a {tag.kind}"
+    best_dpi, best_slot = max(((fit(tag, s)[0], s.id) for s in accepting), key=lambda x: x[0])
+    if classify_dpi(best_dpi) == DpiStatus.FAIL:
+        return (f"{tag.path} is not used: too small for every slot that accepts a {tag.kind} "
+                f"(at most {_dpi_text(best_dpi)}, in {best_slot}; {PRINT.warn_dpi} needed)")
+    return f"{tag.path} is not used: every slot it fits took a better image"
