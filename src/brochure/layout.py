@@ -94,6 +94,7 @@ def score(tag: ImageTag, slot: ResolvedSlot, rule: SlotRule, weights: ScoreWeigh
         weights.keyword * len(matched_keywords(tag, rule))
         + (weights.dpi_pass if band == DpiStatus.PASS else 0.0)
         - weights.aspect * aspect_mismatch(tag, slot)
+        + dict(weights.quality)[tag.quality]
     )
 
 

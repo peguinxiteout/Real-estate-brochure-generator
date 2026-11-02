@@ -80,3 +80,8 @@ def test_an_image_closer_to_the_slots_shape_scores_higher_because_less_is_croppe
     tall = tag(path="c.jpg", width_px=1100, height_px=1500)    # 0.73
     assert score(close, slot(), rule()) > score(wide, slot(), rule())
     assert score(close, slot(), rule()) > score(tall, slot(), rule())
+
+
+def test_a_better_quality_grade_scores_higher_good_then_fair_then_poor():
+    good, fair, poor = (tag(path=f"{q}.jpg", quality=q) for q in ("good", "fair", "poor"))
+    assert score(good, slot(), rule()) > score(fair, slot(), rule()) > score(poor, slot(), rule())
