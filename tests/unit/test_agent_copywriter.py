@@ -137,3 +137,74 @@ def test_an_empty_tone_is_sent_as_an_empty_string():
     facts = state.project_facts.model_copy(update={"tone_notes": ""})
     _, llm = run(facts=facts)
     assert first_payload(llm)["tone_notes"] == ""
+
+
+# --- failing slots are asked for again, once, and only those -----------------------------------------------------------
+
+class Script:
+    """An LLMClient that plays one scripted answer per call (a dict is returned, an exception is raised)."""
+
+    def __init__(self, *answers):
+        self.answers, self.calls = list(answers), []
+
+    def complete(self, task, payload, images=None):
+        self.calls.append((task, payload, images))
+        assert len(self.calls) <= len(self.answers), f"unexpected call number {len(self.calls)}"
+        answer = self.answers[len(self.calls) - 1]
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+
+def play(*answers, **changes):
+    llm = Script(*answers)
+    return copywriter_agent(inputs(**changes), llm), llm
+
+
+TOO_LONG = "A" * 41  # cover_title has 40 characters
+
+
+def test_an_over_budget_slot_is_asked_for_again_and_the_second_text_is_used():
+    copy, llm = play({**GOOD, "cover_title": TOO_LONG}, GOOD)
+    assert len(llm.calls) == 2
+    assert copy == GOOD
+
+
+def test_an_empty_slot_is_asked_for_again():
+    copy, llm = play({**GOOD, "plan_note": "  "}, GOOD)
+    assert len(llm.calls) == 2
+    assert copy == GOOD
+
+
+def test_a_reply_without_a_slot_or_with_a_non_string_for_it_counts_as_a_failure_of_that_slot():
+    incomplete = {k: v for k, v in GOOD.items() if k != "plan_note"}
+    copy, llm = play({**incomplete, "cover_title": 7}, GOOD)
+    assert len(llm.calls) == 2
+    assert [s["id"] for s in llm.calls[1][1]["slots"]] == ["cover_title", "plan_note"]
+    assert copy == GOOD
+
+
+def test_the_second_call_sends_only_the_failing_slots_with_the_reason_for_each_and_the_rest_unchanged():
+    _, llm = play({**GOOD, "cover_title": TOO_LONG, "plan_note": ""}, GOOD)
+    first, second = llm.calls[0][1], llm.calls[1][1]
+    assert "problems" not in first
+    assert [s["id"] for s in second["slots"]] == ["cover_title", "plan_note"]
+    assert set(second["problems"]) == {"cover_title", "plan_note"}
+    assert "41" in second["problems"]["cover_title"] and "40" in second["problems"]["cover_title"]
+    assert "empty" in second["problems"]["plan_note"]
+    assert {k: v for k, v in second.items() if k not in ("slots", "problems")} == {k: v for k, v in first.items() if k != "slots"}
+
+
+def test_slots_that_passed_the_first_time_are_kept_whatever_the_second_reply_says_about_them():
+    second = {**GOOD, "cover_title": "Aurelia Heights, Pune", "plan_note": "REWRITTEN", "about_headline": "x" * 500}
+    copy, _ = play({**GOOD, "cover_title": TOO_LONG}, second)
+    assert copy["cover_title"] == "Aurelia Heights, Pune"
+    assert copy["plan_note"] == GOOD["plan_note"]
+    assert copy["about_headline"] == GOOD["about_headline"]
+
+
+def test_a_second_reply_that_fixes_one_slot_and_not_the_other_keeps_the_fixed_one():
+    copy, llm = play({**GOOD, "cover_title": TOO_LONG, "plan_note": ""}, {**GOOD, "plan_note": ""})
+    assert len(llm.calls) == 2
+    assert copy["cover_title"] == GOOD["cover_title"]
+    assert "plan_note" not in copy

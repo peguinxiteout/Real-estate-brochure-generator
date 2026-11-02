@@ -3,6 +3,7 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from brochure.agents.copy_checks import Known, known_from, problems
 from brochure.contracts.images import ImageTag
 from brochure.contracts.project import ProjectFacts
 from brochure.contracts.qa import QAIssue
@@ -59,7 +60,38 @@ def _payload(inputs: CopyInputs, slots: list[ResolvedSlot]) -> dict:
     return payload
 
 
+def _judge(reply: dict, slots: list[ResolvedSlot], known: Known) -> tuple[dict[str, str], dict[str, list[str]]]:
+    """Split a reply into the slots whose text passed every check (id -> text) and those that did not (id -> reasons)."""
+    passed, failed = {}, {}
+    for slot in slots:
+        value = reply.get(slot.id)
+        if not isinstance(value, str):
+            failed[slot.id] = ["the reply has no text for this slot"]
+            continue
+        text = value.strip()
+        if reasons := problems(text, slot.char_budget, known):
+            failed[slot.id] = reasons
+        else:
+            passed[slot.id] = text
+    return passed, failed
+
+
 def copywriter_agent(inputs: CopyInputs, llm: LLMClient) -> dict[str, str]:
-    """slot id -> text for the slots whose copy passed every check; a slot that could not be written is left out."""
-    reply = llm.complete(TASK, _payload(inputs, inputs.slots))
-    return {slot.id: reply[slot.id].strip() for slot in inputs.slots}
+    """slot id -> text for the slots whose copy passed every check; a slot that could not be written is left out.
+
+    A failing slot is asked for again once, alone, with the reasons; the slots that passed keep their first text.
+    """
+    known = known_from(inputs.facts, inputs.company_name)
+    written: dict[str, str] = {}
+    pending, failed = list(inputs.slots), {}
+    for attempt in (1, 2):
+        payload = _payload(inputs, pending)
+        if failed:
+            payload["problems"] = {slot_id: "; ".join(reasons) for slot_id, reasons in failed.items()}
+        passed, failed = _judge(llm.complete(TASK, payload), pending, known)
+        written.update(passed)
+        pending = [slot for slot in pending if slot.id in failed]
+        if not pending:
+            break
+        logger.info("asking again for %s: %s", ", ".join(failed), failed)
+    return {slot.id: written[slot.id] for slot in inputs.slots if slot.id in written}
