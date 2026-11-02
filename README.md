@@ -22,20 +22,20 @@ Built (see [docs/CHANGELOG.md](docs/CHANGELOG.md) for the history):
 - Print rules: print config and DPI maths (section 7).
 - Slots format, loader and the `classic-8pp` template (section 8).
 - LLM interface with a `FakeLLM` for tests, and a real client for any OpenAI-compatible endpoint (Groq by default) (section 9).
-- The Brief and Copywriter agents are real, using the LLM (section 3): Brief fills empty form fields with facts the prompt states; Copywriter writes the free-text slots, checked in code. The other agents are still stubs.
-- The pipeline graph (LangGraph), with pause and resume for missing fields and for human review (section 3). `stub_agents()` runs it with no LLM; `real_agents()` swaps in the real Brief and Copywriter agents, which use the client that `build_graph` is given.
+- The Brief and Copywriter agents are real, using the LLM (section 3): Brief fills empty form fields with facts the prompt states; Copywriter writes the free-text slots, checked in code.
+- The Layout step's image assignment is real, in code with no LLM (section 3): images go to slots by kind, resolution against the DPI rule, subject and shape, and every problem is a warning for the reviewer. The other steps are still stubs.
+- The pipeline graph (LangGraph), with pause and resume for missing fields and for human review (section 3). `stub_agents()` runs it with no LLM; `real_agents()` swaps in the real Brief and Copywriter agents, which use the client that `build_graph` is given, and the rule-based layout.
 - A fictional sample project, "Aurelia Heights" (section 10).
 - `brochure doctor`: checks Python, WeasyPrint, Ghostscript and bundled fonts. It is the only CLI command.
 - CI on GitHub Actions: runs the unit tests on pushes to `feature/**` and `fix/**` and on pull requests into `master`.
 
 Not built:
 
-- Real agents other than Brief and Copywriter. Vision, Layout and the QA critic are stubs.
+- Real agents other than Brief and Copywriter. Vision and the QA critic are stubs; Layout does not yet choose between page layouts or apply chat edits.
 - The image tools. They are not in the graph yet.
 - The renderer (HTML to PDF, bleed, crop marks, CMYK). The stub returns fake file paths and creates no files.
 - Export. The stub does nothing.
 - An API and a frontend.
-- Checks of images against the DPI rule inside a pipeline. The maths exists; nothing runs it yet. (Text length is checked, for the slots the Copywriter writes.)
 
 ## 3. How it will work
 
@@ -65,7 +65,7 @@ flowchart TD
 | 2. Vision agent | Runs in parallel with step 1. Describes each photo as an `ImageTag` (kind, subject, quality, focal point). | Stub: returns the 12 sample image tags. |
 | 3. Image tools | Plain code, not an agent. For each image: crops it to its slot's aspect ratio around the focal point, fixes exposure, runs the DPI check, and upscales by at most 2x. Low-resolution images are flagged and limited to small slots. Planned, not built. | Not built, not in the graph. |
 | 4. Copywriter | Writes the text for each text slot, within its `char_budget`. | Real. `real_agents()` runs the Copywriter agent (one LLM call, a second only for slots that fail a check) for the 7 free-text slots; code fills the other 11 text slots word for word. `stub_agents()` uses sample text. |
-| 5. Layout agent | Chooses which image and text goes in which slot and produces the `BrochureSpec`. Also applies the human's chat edits. | Stub: places the sample images and text in every slot. |
+| 5. Layout agent | Chooses which image and text goes in which slot and produces the `BrochureSpec`. Also applies the human's chat edits. | Image assignment is real: `real_agents()` places images by rules in code (no LLM) and warns about every problem. `stub_agents()` uses the manifest's intended slots. Chat edits are not applied yet. |
 | 6. Renderer | Fills the HTML/CSS template from the spec and produces the PDF and one PNG per page. | Stub: fake paths, no files. |
 | 7. QA critic | Looks at the pages and the spec and returns `QAIssue`s. Each issue says who should fix it (`route_to`). The loop stops after 3 rounds. | Stub: no issues unless scripted. The routing and the 3-round limit are real. |
 | 8. Human review | A person approves, or asks for changes in chat. | Real: pauses, resumes with `approved` or `changes_requested`. No chat text yet. |
@@ -87,7 +87,7 @@ files in `sample/` (including `sample/stub_copy.json`), make no LLM calls and re
 - After the renderer, the QA step runs. An issue routed to `copywriter` sends the run back to the copywriter (then
   layout, render, QA); one routed to `layout` goes back to layout; one routed to `none` does not loop. After 3 QA
   passes the run moves on whatever the issues say. Issues that do not loop, and any left after the 3rd pass, are
-  written to `spec.qa_warnings`.
+  added to `spec.qa_warnings`, after the layout's own warnings.
 - `human_review` pauses. The caller resumes with `"approved"` (the run goes to export and ends) or
   `"changes_requested"` (back through layout, render and QA to review; `qa_round` restarts at 0). Any other answer is
   asked again.
@@ -224,6 +224,50 @@ reviewer sees the gap (the QA critic will later flag these placeholders).
 none of those ("a gym with floor-to-ceiling windows") passes; the prompt forbids it, and only a later reviewer or QA
 critic can catch it. The brief's free-text prompt is not sent to the Copywriter.
 
+### The Layout step: image assignment in code
+
+`src/brochure/layout.py`, with the rules in `templates/classic-8pp/layout_rules.json`. No LLM: the same tags give the
+same assignment every time. `real_agents()` uses it; `stub_agents()` still puts each image in the manifest's
+`intended_slot`. Text, the verbatim slots, both logos (from the brand kit) and the QR code are filled as before.
+
+**Rules file.** One rule per non-logo image slot: the image `kinds` it accepts (`photo`, `render`, `floor_plan`, `map`),
+preferred `keywords`, and a `priority` (the order in which slots pick: the cover hero first, then large slots, then
+small). It belongs to the layout, not to the shared contracts. `rule_problems()` checks it against the template: every
+non-logo image slot has exactly one rule, every rule names such a slot, no two rules share a priority.
+
+**Eligible.** An image can go in a slot when the slot accepts its kind and its effective DPI there (the slot size with
+its bleed, the same rule as everywhere) is not in the fail band. The warn band is allowed.
+
+**Score** (higher wins; weights in `ScoreWeights`, one place):
+
+| Term | Weight |
+|---|---|
+| Each of the slot's keywords found in the image's subject or features (any case) | +100 |
+| Effective DPI in the pass band (warn band: 0) | +20 |
+| Shape: subtracted per unit of \|ln(image ratio / slot ratio)\| (less cropping is better) | -10 |
+| Quality grade: good / fair / poor | +6 / +3 / 0 |
+
+The weights are ordered so that what the image shows comes first, then print quality, then cropping, then the grade.
+
+**Picking.** Slots pick in priority order; each takes its best-scoring eligible image that is not used yet, so an image
+is used at most once. Ties go to the image whose path sorts first, so the input order never matters.
+
+**Warnings.** Every problem becomes a `QAIssue` in `spec.qa_warnings` (severity `warning`, `route_to` `none`):
+
+- `layout.slot_unfilled`, on the slot's page: no image of its kind, every image of its kind that fits is used
+  elsewhere, or the images of its kind were too small (each named with its DPI, rounded down). The slot is left out of
+  its page's slots; `PageSpec.slots` is a plain dict, so the contract allows it. No placeholder image is written.
+- `layout.dpi_warn`, on the slot's page: an image placed in the warn band, with its effective DPI.
+- `layout.image_unused`, no page: an image used nowhere, and why (no slot accepts its kind, too small for every slot
+  that does, or every slot it fits took a better image).
+
+QA issues that go to the reviewer are added after these. A QA issue routed to `layout`, and `changes_requested`, re-run
+the same layout: nothing acts on the instruction yet (chat edits come later).
+
+On the sample, the 9 images that can be placed land in their intended slots; `plan_img_b`, `amenity_img_c` and
+`about_img` are left unfilled because their images fail the DPI rule, and `amenity_clubhouse.jpg` is placed with a
+warning (section 10).
+
 Run the pipeline tests. They use the in-memory checkpointer and a temporary SQLite file, and they fail if anything
 opens a network connection or calls the `FakeLLM`:
 
@@ -244,12 +288,13 @@ src/brochure/
   print_config.py             A4 size, bleed, DPI thresholds
   dpi.py                      min_pixels, effective_dpi, classify_dpi
   slots.py                    load slots.json, compute min_px
+  layout.py                   layout rules, image eligibility and scoring, image assignment and its warnings
   contracts/                  Pydantic models and the schema export
   llm/                        LLMClient, FakeLLM, OpenAICompatibleClient, Agent protocol
   verbatim.py                 the text slots code fills word for word (RERA, contact, lists, about text, disclaimer)
   agents/                     real agents (Brief, Copywriter), their prompt files, the copy checks and their data files
   pipeline/                   LangGraph graph, stub agents, real_agents, checkpointers
-templates/classic-8pp/        slots.json for the 8-page template (no HTML/CSS yet)
+templates/classic-8pp/        slots.json and layout_rules.json for the 8-page template (no HTML/CSS yet)
 tests/unit/                   fast tests, no network
 tests/integration/            tests that need WeasyPrint or Ghostscript
 tests/llm/                    tests that call the real model (marker `llm`, skipped without a key)
@@ -523,7 +568,8 @@ For their intended slots, three images fail the DPI rule and one warns:
 | `amenity_clubhouse.jpg` | `amenity_img_b` | 288.6 | warn |
 
 The other eight pass. Having bad images on purpose lets the QA and Layout code be tested against failures without
-needing real photos. A test pins exactly which images fail and which warns.
+needing real photos. A test pins exactly which images fail and which warns. The rule-based layout places none of the
+three failing images (their slots stay unfilled, with a warning) and places the clubhouse with a warn-band warning.
 
 ## 11. How we work
 
