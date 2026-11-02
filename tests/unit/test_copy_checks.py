@@ -203,3 +203,18 @@ def test_the_banned_phrases_are_a_data_file():
 
     lines = (DATA_DIR / "copy_banned_phrases.txt").read_text(encoding="utf-8").splitlines()
     assert set(BANNED) <= {line.strip() for line in lines}
+
+
+# --- found by the live run ---------------------------------------------------------------------------------------------
+
+def test_a_title_cased_headline_is_rejected_and_the_reason_says_to_use_lower_case_for_words_that_are_not_names():
+    reasons = check("Twin Towers Shine Over Pune")
+    assert len(reasons) == 1
+    assert "Towers" in reasons[0] and "Shine" in reasons[0] and "Pune" not in reasons[0]
+    assert "lower case" in reasons[0]
+
+
+@pytest.mark.parametrize("separator", ["\u00a0", "\u202f", "\u2009"])
+def test_a_thousands_group_split_by_a_non_breaking_or_thin_space_is_one_number(separator):
+    assert check(f"Homes of 1{separator}090 sq ft") == []
+    assert len(check(f"Homes of 1{separator}091 sq ft")) == 1

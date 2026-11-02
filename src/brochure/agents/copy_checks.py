@@ -15,7 +15,8 @@ NUMBER_WORDS = {
         start=1,
     )
 }
-_NUMBER = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?")  # a comma only counts inside 1,090
+_THOUSANDS_SEPARATORS = r",\u00a0\u202f\u2009"  # a comma, or a non-breaking, narrow or thin space: 1,090 or 1 090
+_NUMBER = re.compile(r"\d{1,3}(?:[" + _THOUSANDS_SEPARATORS + r"]\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?")
 _WORD = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)*")  # letters, with an inner apostrophe: Children's
 _SKIPPED_BEFORE_A_WORD = " \t\"'“‘([*•–—-"  # quotes, brackets and bullets in front of a sentence's first word
 _NUMBER_WORD = re.compile(r"\b(" + "|".join(NUMBER_WORDS) + r")\b", re.IGNORECASE)
@@ -64,7 +65,7 @@ def _words_in(text: str) -> list[tuple[str, bool]]:
 
 def _numbers_in(text: str) -> list[tuple[str, float]]:
     """(as written, value) for every number in the text, digits and number words alike, in reading order."""
-    found = [(m.start(), m.group(), float(m.group().replace(",", ""))) for m in _NUMBER.finditer(text)]
+    found = [(m.start(), m.group(), float(re.sub("[" + _THOUSANDS_SEPARATORS + "]", "", m.group()))) for m in _NUMBER.finditer(text)]
     found += [(m.start(), m.group(), float(NUMBER_WORDS[m.group().lower()])) for m in _NUMBER_WORD.finditer(text)]
     return [(written, value) for _, written, value in sorted(found)]
 
@@ -120,7 +121,7 @@ def problems(text: str, char_budget: int, known: Known) -> list[str]:
     if unknown := _unknown_numbers(text, known):
         reasons.append(f"not in the project facts: number {', '.join(unknown)}")
     if unknown := _unknown_names(text, known):
-        reasons.append(f"not in the project facts: name {', '.join(unknown)}")
+        reasons.append(f"capitalised but not a name in the project facts: {', '.join(unknown)} (use lower case for ordinary words)")
     if money := _listed_in(text, "copy_money_words.txt"):
         reasons.append(f"money or investment wording: {', '.join(money)}")
     if banned := _listed_in(text, "copy_banned_phrases.txt"):
