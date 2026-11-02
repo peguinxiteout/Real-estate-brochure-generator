@@ -1,5 +1,6 @@
 """The checks on one slot of copy: facts are strict, wording is free. Each check gives short readable reasons."""
 import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -110,6 +111,17 @@ def _unknown_names(text: str, known: Known) -> list[str]:
         if word[0].isupper() and not starts_sentence and _name_key(word) not in known.words:
             unknown.setdefault(_name_key(word), word)
     return list(unknown.values())
+
+
+_HYPHENS = {"\u2010": "-", "\u2011": "-"}
+
+
+def normalise_text(text: str) -> str:
+    """The text with typographic spaces (no-break, narrow, thin, em... any Unicode space separator) replaced by a plain
+    space and the hyphens U+2010 and U+2011 by "-". Quotes, apostrophes, dashes and newlines are kept."""
+    return "".join(
+        " " if unicodedata.category(char) == "Zs" else _HYPHENS.get(char, char) for char in text
+    )
 
 
 def problems(text: str, char_budget: int, known: Known) -> list[str]:

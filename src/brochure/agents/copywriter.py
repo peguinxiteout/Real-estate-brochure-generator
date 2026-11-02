@@ -3,7 +3,7 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from brochure.agents.copy_checks import Known, known_from, problems
+from brochure.agents.copy_checks import Known, known_from, normalise_text, problems
 from brochure.contracts.images import ImageTag
 from brochure.contracts.project import ProjectFacts
 from brochure.contracts.qa import QAIssue
@@ -71,7 +71,7 @@ def _judge(reply: dict, slots: list[ResolvedSlot], known: Known) -> tuple[dict[s
         if not isinstance(value, str):
             failed[slot.id] = ["the reply has no text for this slot"]
             continue
-        text = value.strip()
+        text = normalise_text(value).strip()
         if reasons := problems(text, slot.char_budget, known):
             failed[slot.id] = reasons
         else:

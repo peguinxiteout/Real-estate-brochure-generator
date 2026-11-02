@@ -224,3 +224,50 @@ def test_the_over_budget_reason_gives_a_target_below_the_limit_because_a_model_c
     (reason,) = check("a" * 630, budget=600)
     assert "630 characters, the limit is 600" in reason
     assert "510" in reason  # 85% of the budget: the length to aim for
+
+
+# --- normalising: typographic spaces and hyphens become plain ones before the checks ------------------------------------
+
+from brochure.agents.copy_checks import normalise_text  # noqa: E402
+
+
+def test_a_narrow_no_break_space_u202f_becomes_a_plain_space():
+    assert normalise_text("780\u202fsq\u202fft") == "780 sq ft"
+
+
+def test_a_no_break_space_u00a0_becomes_a_plain_space():
+    assert normalise_text("2\u00a0BHK") == "2 BHK"
+
+
+def test_a_thin_space_u2009_becomes_a_plain_space():
+    assert normalise_text("Dec\u20092028") == "Dec 2028"
+
+
+@pytest.mark.parametrize("space", ["\u2002", "\u2003", "\u2007", "\u200a", "\u205f", "\u3000", "\u1680"])
+def test_any_other_unicode_space_separator_becomes_a_plain_space(space):
+    assert normalise_text(f"a{space}b") == "a b"
+
+
+def test_a_hyphen_u2010_becomes_a_plain_hyphen():
+    assert normalise_text("co\u2010working") == "co-working"
+
+
+def test_a_non_breaking_hyphen_u2011_becomes_a_plain_hyphen():
+    assert normalise_text("high\u2011speed lifts") == "high-speed lifts"
+
+
+def test_curly_quotes_and_apostrophes_and_dashes_are_kept():
+    text = "Children\u2019s \u201cplay\u201d area \u2013 and \u2018more\u2019 \u2014 done"
+    assert normalise_text(text) == text
+
+
+def test_newlines_and_plain_text_are_untouched():
+    assert normalise_text("one\nline two\ttab") == "one\nline two\ttab"
+
+
+def test_the_checks_see_normalised_text_so_a_sentence_start_after_an_em_space_is_found():
+    from tests.unit.test_agent_copywriter import GOOD, play  # the agent normalises before it checks
+
+    copy, llm = play({**GOOD, "cover_tagline": "Calm streets.\u2003Zorbaville is near"})
+    assert len(llm.calls) == 1
+    assert copy["cover_tagline"] == "Calm streets. Zorbaville is near"

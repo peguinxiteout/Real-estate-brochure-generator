@@ -339,3 +339,22 @@ def test_the_prompt_says_only_renders_are_an_artists_impression():
     for word in ("render", "photo", "floor_plan", "map", "artist's impression"):
         assert word in rule
     assert "never" in rule
+
+
+# --- the returned copy is normalised ---------------------------------------------------------------------------------
+
+def test_the_returned_copy_has_plain_spaces_and_hyphens_whatever_the_model_wrote():
+    typed = {
+        **GOOD,
+        "overview_highlights": "2\u00a0BHK homes of 780\u202fsq\u202fft\nCo\u2011working lounge\nPossession Dec\u20092028\nHigh\u2010speed lifts",
+        "plan_note": "Areas shown are carpet areas\u2003only. Children\u2019s play area.",
+    }
+    copy, llm = play(typed)
+    assert len(llm.calls) == 1  # nothing failed: the typographic characters were not a reason to retry
+    assert copy["overview_highlights"] == "2 BHK homes of 780 sq ft\nCo-working lounge\nPossession Dec 2028\nHigh-speed lifts"
+    assert copy["plan_note"] == "Areas shown are carpet areas only. Children\u2019s play area."
+
+
+def test_the_budget_is_checked_on_the_normalised_text_which_is_the_text_that_is_returned():
+    copy, _ = play({**GOOD, "cover_title": "Aurelia\u202fHeights"})
+    assert copy["cover_title"] == "Aurelia Heights" and len(copy["cover_title"]) <= OWNED["cover_title"]
