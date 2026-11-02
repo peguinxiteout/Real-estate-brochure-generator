@@ -47,6 +47,19 @@ def copy_task_spec(slots: list[ResolvedSlot]) -> TaskSpec:
 TASK_SPEC = copy_task_spec(owned_slots(load_slots(TEMPLATE_FILE)))
 
 
+def _payload(inputs: CopyInputs, slots: list[ResolvedSlot]) -> dict:
+    """What the model is sent: the facts, what the images show, the tone and the slots to write. No paths, no geometry."""
+    payload = {
+        "project": inputs.facts.model_dump(exclude={"tone_notes"}),
+        "company_name": inputs.company_name,
+        "images": [{"subject": tag.subject, "features": tag.features} for tag in inputs.image_tags],
+        "tone_notes": inputs.facts.tone_notes,
+        "slots": [{"id": s.id, "page": s.page, "char_budget": s.char_budget, "comment": s.comment} for s in slots],
+    }
+    return payload
+
+
 def copywriter_agent(inputs: CopyInputs, llm: LLMClient) -> dict[str, str]:
     """slot id -> text for the slots whose copy passed every check; a slot that could not be written is left out."""
-    return {}
+    reply = llm.complete(TASK, _payload(inputs, inputs.slots))
+    return {slot.id: reply[slot.id].strip() for slot in inputs.slots}
