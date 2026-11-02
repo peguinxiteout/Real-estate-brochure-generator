@@ -72,6 +72,7 @@ class PageGeometry:
     bleed: Box
     trim: Box
     crop_marks: tuple[Segment, ...] = ()
+    crop_mark_weight_pt: float = 0  # a line weight, in points in both the mm and the pt geometry
 
 
 def _crop_marks(trim: Box, near: float, far: float) -> tuple[Segment, ...]:
@@ -104,9 +105,16 @@ def page_geometry_mm(config: PrintConfig = PRINT) -> PageGeometry:
         bleed=trim.grown(config.bleed_mm),
         trim=trim,
         crop_marks=_crop_marks(trim, near, far),
+        crop_mark_weight_pt=config.crop_mark_weight_pt,
     )
 
 
 def page_geometry_pt(config: PrintConfig = PRINT) -> PageGeometry:
     mm = page_geometry_mm(config)
-    return PageGeometry(media=mm.media.to_pt(), bleed=mm.bleed.to_pt(), trim=mm.trim.to_pt())
+    return PageGeometry(
+        media=mm.media.to_pt(),
+        bleed=mm.bleed.to_pt(),
+        trim=mm.trim.to_pt(),
+        crop_marks=tuple(m.to_pt() for m in mm.crop_marks),
+        crop_mark_weight_pt=mm.crop_mark_weight_pt,
+    )

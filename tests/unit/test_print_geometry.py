@@ -115,3 +115,12 @@ def test_crop_marks_lie_outside_the_bleed_and_inside_the_media_box():
 def test_a_config_that_puts_crop_marks_in_the_bleed_or_off_the_media_is_refused(changes):
     with pytest.raises(ValueError, match="crop mark"):
         page_geometry_mm(replace(PRINT, **changes))
+
+
+def test_crop_marks_in_points_start_14_17_pt_outside_the_trim_and_are_14_17_pt_long_0_25_pt_wide():
+    g = page_geometry_pt()
+    assert len(g.crop_marks) == 8
+    for m in g.crop_marks:
+        assert distance_outside_trim(g.trim, m.x0, m.y0) == pytest.approx(14.1732, abs=TOL_PT), m
+        assert m.length == pytest.approx(14.1732, abs=TOL_PT), m
+    assert g.crop_mark_weight_pt == 0.25
