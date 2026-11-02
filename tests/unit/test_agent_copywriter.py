@@ -545,3 +545,10 @@ def test_the_single_line_slots_are_the_headlines_taglines_and_titles():
     ids = {s.id: is_single_line(s) for s in owned_slots(TEMPLATE)}
     assert ids == {"cover_tagline": True, "overview_headline": True, "about_headline": True, "overview_intro": False,
                    "overview_highlights": False, "amenities_blurb": False, "plan_note": False}
+
+
+def test_the_prompt_keeps_overview_intro_a_short_summary_that_does_not_repeat_the_other_slots():
+    prompt = PROMPT_FILE.read_text(encoding="utf-8")
+    rule = next(line for line in prompt.splitlines() if "overview_intro" in line and line[0].isdigit())
+    for phrase in ("short summary", "landmark", "distance", "configuration", "area", "specifications", "own slots"):
+        assert phrase in rule

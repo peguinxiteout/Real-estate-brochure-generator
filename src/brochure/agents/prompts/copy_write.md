@@ -26,6 +26,7 @@ Rules:
 10. Describe each image by its "kind". Only a render is an artist's impression: if your copy refers to how the project will look in a render, say so. A photo is a photograph. A floor_plan is a plan and a map is a map: never call a floor plan or a map an artist's impression.
 11. Do not write the RERA number, contact details or legal text. Those slots are filled elsewhere.
 12. "overview_highlights": each line states one fact taken from "project": a configuration with its carpet area, the location, the possession date, an amenity or a landmark with its distance. A line never describes a picture or an image.
-13. Fit the slot. A headline is one short line with no full stop. A slot whose comment asks for lines is lines separated by newlines. "about_headline" is the headline of the page about the developer: you know only the company's name, so say nothing about its history or record.
+13. "overview_intro" is a short summary of the project. Do not list every landmark with its distance, every configuration with its area, or the specifications: they appear in their own slots on the page. Mention at most one or two of them, and only to give a sense of the place.
+14. Fit the slot. A headline is one short line with no full stop. A slot whose comment asks for lines is lines separated by newlines. "about_headline" is the headline of the page about the developer: you know only the company's name, so say nothing about its history or record.
 
 Answer with the JSON object and nothing else.
