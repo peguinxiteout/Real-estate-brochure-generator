@@ -20,6 +20,7 @@ Built (see [docs/CHANGELOG.md](docs/CHANGELOG.md) for the history):
 
 - Contracts: Pydantic models for everything the pipeline passes around, plus exported JSON Schemas (section 6).
 - Print rules: print config and DPI maths (section 7).
+- Print geometry: page boxes (trim, 3 mm bleed, 10 mm slug), crop marks, the page count rule, and a blank proof PDF with those boxes and marks, made with WeasyPrint (section 7, "Print geometry"). Not wired into the pipeline yet.
 - Slots format, loader and the `classic-8pp` template (section 8).
 - LLM interface with a `FakeLLM` for tests, and a real client for any OpenAI-compatible endpoint (Groq by default) (section 9).
 - The Brief and Copywriter agents are real, using the LLM (section 3): Brief fills empty form fields with facts the prompt states; Copywriter writes the free-text slots, checked in code.
@@ -33,7 +34,7 @@ Not built:
 
 - Real agents other than Brief and Copywriter. Vision and the QA critic are stubs; Layout does not yet choose between page layouts or apply chat edits.
 - The image tools. They are not in the graph yet.
-- The renderer (HTML to PDF, bleed, crop marks, CMYK). The stub returns fake file paths and creates no files.
+- The renderer (BrochureSpec to HTML to PDF, CMYK). The page boxes and crop marks are settled (the blank proof), but the graph's renderer is still a stub that returns fake file paths and creates no files.
 - Export. The stub does nothing.
 - An API and a frontend.
 
@@ -286,8 +287,9 @@ sample/                       fictional "Aurelia Heights" project (brand kit, br
 src/brochure/
   cli.py                      `brochure` command (only `doctor`)
   doctor.py                   environment checks and fix hints
-  print_config.py             A4 size, bleed, DPI thresholds
+  print_config.py             A4 size, bleed, slug, crop marks, page count multiple, DPI thresholds
   dpi.py                      min_pixels, effective_dpi, classify_dpi
+  render/                     geometry.py (page boxes, crop marks, page count, no WeasyPrint); pdf.py (blank proof PDF)
   slots.py                    load slots.json, compute min_px
   layout.py                   layout rules, image eligibility and scoring, image assignment and its warnings
   contracts/                  Pydantic models and the schema export
@@ -299,7 +301,7 @@ templates/classic-8pp/        slots.json and layout_rules.json for the 8-page te
 tests/unit/                   fast tests, no network
 tests/integration/            tests that need WeasyPrint or Ghostscript
 tests/llm/                    tests that call the real model (marker `llm`, skipped without a key)
-tools/                        export_schemas.py, make_sample_images.py
+tools/                        export_schemas.py, make_sample_images.py, make_blank_pdf.py
 README.md                     this file
 CONTRIBUTING.md               setup, TDD rules, branching rules
 pyproject.toml                dependencies, pytest markers
@@ -405,6 +407,50 @@ amenity_clubhouse.jpg 1000x682 px -> amenity_img_b 88x60 mm min_px (1040, 709) 2
 
 The hero slot is a full page (210 x 297 mm) bleeding on all four edges, so it is measured as 216 x 303 mm. The
 clubhouse image has fewer pixels than the 1040 x 709 the slot needs, so it lands in the warn band.
+
+### Print geometry
+
+The page boxes and crop marks of every PDF page. The slug and crop mark numbers are **provisional until the printer
+confirms its spec**. All the numbers live in `src/brochure/print_config.py`; `src/brochure/render/geometry.py` computes
+the boxes and mark segments from them (pure code, in mm and in points, 1 mm = 72 / 25.4 pt) and refuses a config whose
+marks would touch the bleed or leave the MediaBox. Coordinates have their origin at the trim's lower-left corner, as
+WeasyPrint writes them, so the BleedBox and MediaBox start at negative values.
+
+| Box | Rule | Size (mm) | PDF box (pt) |
+|---|---|---|---|
+| TrimBox | A4 portrait | 210 x 297 | [0, 0, 595.276, 841.890] |
+| BleedBox | trim + 3 mm (`bleed_mm`) on every edge | 216 x 303 | [-8.504, -8.504, 603.780, 850.394] |
+| MediaBox | bleed + 10 mm slug (`slug_beyond_bleed_mm`, measured from the bleed edge) on every edge | 236 x 323 | [-36.850, -36.850, 632.126, 878.740] |
+
+Crop marks: two per corner (one horizontal, one vertical) on the extensions of the trim lines, 0.25 pt black lines
+(`crop_mark_weight_pt`), 5 mm (14.173 pt) long (`crop_mark_length_mm`). Each starts 5 mm (14.173 pt) from the trim edge
+(`crop_mark_offset_mm`) and ends 10 mm (28.346 pt) from it, so it is 2 mm clear of the bleed and ends 3 mm inside the
+MediaBox. The page count must be a positive multiple of 4 (`page_count_multiple`), otherwise `ValueError`.
+
+How the PDF gets these boxes (`src/brochure/render/pdf.py`): WeasyPrint's `@page { bleed: B }` makes the MediaBox the
+trim grown by B, so B is set to bleed + slug (13 mm). WeasyPrint caps its BleedBox at 10 pt (3.53 mm) outside the
+trim, so a `write_pdf` finisher rewrites every page's BleedBox to the 3 mm bleed. WeasyPrint's own `marks: crop` draws
+0.75 pt lines from the media edge in to B / 2, which cannot be changed, so it is off and the marks are drawn as vector
+lines (SVG) from the geometry.
+
+Make a blank proof to look at (8 pages, light blue over the bleed box, a thin line on the trim, crop marks, the page
+number in the middle; git-ignored):
+
+```
+~/.venvs/brochure/bin/python tools/make_blank_pdf.py                 # writes sample/blank-8pp.pdf
+~/.venvs/brochure/bin/python tools/make_blank_pdf.py --out out/proof.pdf --pages 12
+```
+
+The geometry's unit tests run in CI. The PDF is checked by integration tests in WSL (pypdf reads the boxes of every
+page; Ghostscript renders page 1 at 100 DPI and Pillow checks the fill at the bleed edge, the white gap and slug, and the
+mark pixels):
+
+```
+~/.venvs/brochure/bin/python -m pytest tests/integration/test_blank_pdf.py -rs
+```
+
+The proof's page number uses a system sans-serif font: the brand fonts are not committed yet. The proof is RGB; CMYK
+conversion comes with the renderer.
 
 ## 8. Templates and slots
 
