@@ -24,3 +24,15 @@ def test_bleed_box_is_exactly_3_mm_outside_the_trim_on_every_edge():
     assert g.trim.bottom - g.bleed.bottom == 3
     assert g.bleed.right - g.trim.right == 3
     assert g.bleed.top - g.trim.top == 3
+
+
+def test_media_box_is_trim_plus_bleed_plus_slug_on_every_edge_236_by_323_mm():
+    media = page_geometry_mm().media
+    assert (media.width, media.height) == (236, 323)
+
+
+def test_trim_is_centred_in_the_media_box():
+    g = page_geometry_mm()
+    margins = {g.trim.left - g.media.left, g.trim.bottom - g.media.bottom,
+               g.media.right - g.trim.right, g.media.top - g.trim.top}
+    assert margins == {PRINT.bleed_mm + PRINT.slug_beyond_bleed_mm}
