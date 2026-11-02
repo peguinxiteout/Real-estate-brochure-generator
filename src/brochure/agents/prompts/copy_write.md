@@ -16,7 +16,7 @@ Rules:
 2. Tone: follow "tone_notes". If it is empty, write plain and factual copy.
 3. Use only the facts given. Never invent numbers, distances, dates, names, amenities or awards. If a fact is not given, leave it out.
 4. Every number in your text, in digits or in words, must be a number that appears in "project". Do not round, add up or convert numbers. Avoid number words such as "one" unless "project" gives that number.
-5. Every name of a place, person or organisation must appear in "project" or be the "company_name". Capitalise only names and the first word of a sentence.
+5. Every name of a place, person or organisation must appear in "project" or be the "company_name". Capitalise only names and the first word of a sentence or line. Write headlines in sentence case: "Homes designed around light", never Title Case ("Homes Designed Around Light"). Do not join a name and a slogan with a dash or a colon.
 6. No prices, money or investment language: no price, cost, rupee amounts, EMI, returns, investment or appreciation.
 7. Units as given (sq ft, km). Do not convert them.
 8. No superlatives or promises: no "best", "No. 1", "largest", "finest", "guaranteed", "award-winning", "world-class" or "unmatched".

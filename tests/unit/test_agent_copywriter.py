@@ -301,3 +301,9 @@ def test_a_slot_that_breaks_a_content_check_is_asked_for_again_with_that_reason(
 def test_the_copy_task_asks_for_low_reasoning_so_a_reasoning_model_has_room_left_to_write_the_json():
     assert TASK_SPEC.reasoning_effort == "low"
     assert copy_task_spec(owned_slots(TEMPLATE)).reasoning_effort == "low"
+
+
+def test_the_prompt_asks_for_sentence_case_headlines_because_the_name_check_rejects_title_case():
+    prompt = PROMPT_FILE.read_text(encoding="utf-8")
+    assert "sentence case" in prompt
+    assert "Title Case" in prompt  # shown as the thing not to do
