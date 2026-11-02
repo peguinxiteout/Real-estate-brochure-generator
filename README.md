@@ -379,13 +379,20 @@ llm = llm_from_env()
 graph = build_graph(real_agents(llm), memory_checkpointer(), llm)
 ```
 
-Run the live test (it calls the real model on `sample/brief_sparse.json` and checks properties only):
+The supported way to run the code and the tests is the WSL virtualenv from [CONTRIBUTING.md](CONTRIBUTING.md#setup-wsl-ubuntu)
+(`~/.venvs/brochure`). Any other environment, such as the Windows `.venv`, needs `pip install -e ".[dev]"` first, or
+imports of `brochure.llm` fail on the `openai` dependency.
+
+Run the live test (it calls the real model on `sample/brief_sparse.json`):
 
 ```
 ~/.venvs/brochure/bin/python -m pytest -m llm -rs
 ```
 
-Without `LLM_API_KEY` it skips with that reason.
+Without `LLM_API_KEY` it skips with that reason. With a key it passes only if the model was called, the agent did not
+fall back to the form, the RERA number, possession date and both configurations the prompt states were filled, the
+location (which the prompt never mentions) is still empty, and every filled value is in the prompt. It prints which
+fields the model filled and how many calls were made, never the key.
 
 This example was run from the repo root:
 
