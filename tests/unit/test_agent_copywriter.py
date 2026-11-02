@@ -273,3 +273,41 @@ def test_a_client_error_on_the_second_call_keeps_the_slots_that_passed_and_one_w
 def test_it_never_asks_again_after_a_client_error():
     _, llm = play(LLMError("down"), GOOD)
     assert len(llm.calls) == 1
+
+
+# --- the QA loop sends the run back ------------------------------------------------------------------------------------
+
+def test_issues_routed_to_the_copywriter_are_in_the_payload_with_their_page_check_and_note():
+    issues = [qa_issue("copywriter", note="the intro mentions a nearby mall that is not on the page"),
+              qa_issue("copywriter", note="the headline is too long on page 1")]
+    _, llm = play(GOOD, qa_issues=issues)
+    assert llm.calls[0][1]["qa_issues"] == [
+        {"page": 1, "check": "stub", "note": "the intro mentions a nearby mall that is not on the page"},
+        {"page": 1, "check": "stub", "note": "the headline is too long on page 1"},
+    ]
+
+
+def test_without_qa_issues_the_payload_has_no_qa_issues_key():
+    _, llm = play(GOOD)
+    assert "qa_issues" not in llm.calls[0][1]
+
+
+def test_the_qa_issues_are_sent_again_with_the_second_call():
+    _, llm = play({**GOOD, "cover_title": TOO_LONG}, GOOD, qa_issues=[qa_issue("copywriter", note="tone")])
+    assert llm.calls[1][1]["qa_issues"] == llm.calls[0][1]["qa_issues"]
+
+
+# --- each kind of check is wired in ------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("bad, reason", [
+    ("Homes of 900 sq ft", "900"),                       # a number the facts do not have
+    ("Five minutes from the metro", "Five"),             # a number word the facts do not have
+    ("Near Hinjewadi and the metro", "Hinjewadi"),       # an invented place
+    ("Priced for families", "money"),                    # money
+    ("The best address in Pune", "best"),                # a superlative
+])
+def test_a_slot_that_breaks_a_content_check_is_asked_for_again_with_that_reason(bad, reason):
+    copy, llm = play({**GOOD, "cover_tagline": bad}, GOOD)
+    assert len(llm.calls) == 2
+    assert reason in llm.calls[1][1]["problems"]["cover_tagline"]
+    assert copy["cover_tagline"] == GOOD["cover_tagline"]

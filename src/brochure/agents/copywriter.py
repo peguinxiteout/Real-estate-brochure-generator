@@ -57,6 +57,8 @@ def _payload(inputs: CopyInputs, slots: list[ResolvedSlot]) -> dict:
         "tone_notes": inputs.facts.tone_notes,
         "slots": [{"id": s.id, "page": s.page, "char_budget": s.char_budget, "comment": s.comment} for s in slots],
     }
+    if inputs.qa_issues:  # only when the QA loop sent the run back
+        payload["qa_issues"] = [{"page": i.page, "check": i.check, "note": i.note} for i in inputs.qa_issues]
     return payload
 
 
