@@ -3,6 +3,7 @@
 The rules (accepted kinds, preferred subject keywords, the order in which slots pick) live in the template's
 layout_rules.json. They belong to the layout, not to the shared contracts.
 """
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
@@ -68,3 +69,29 @@ def fit(tag: ImageTag, slot: ResolvedSlot) -> tuple[float, DpiStatus]:
 def eligible(tag: ImageTag, slot: ResolvedSlot, rule: SlotRule) -> bool:
     """The slot accepts the image's kind and the image is not below the DPI floor there."""
     return tag.kind in rule.kinds and fit(tag, slot)[1] != DpiStatus.FAIL
+
+
+@dataclass(frozen=True)
+class ScoreWeights:
+    """How an eligible image is scored for a slot; higher is better. The terms are ordered so that one never
+    outweighs the one above it in practice: what the image shows first, then print quality, then cropping, then the
+    tag's quality grade."""
+
+    keyword: float = 100.0  # for each of the slot's preferred keywords found in the image's subject or features
+    dpi_pass: float = 20.0  # the image is at or above the 300 DPI target in this slot (warn band scores 0)
+    aspect: float = 10.0  # subtracted per unit of |ln(image ratio / slot ratio)|: 0 for the same shape
+    quality: tuple[tuple[str, float], ...] = (("good", 6.0), ("fair", 3.0), ("poor", 0.0))
+
+
+WEIGHTS = ScoreWeights()
+
+
+def score(tag: ImageTag, slot: ResolvedSlot, rule: SlotRule, weights: ScoreWeights = WEIGHTS) -> float:
+    """How well an eligible image suits the slot."""
+    return weights.keyword * len(matched_keywords(tag, rule))
+
+
+def matched_keywords(tag: ImageTag, rule: SlotRule) -> list[str]:
+    """The slot's preferred keywords that appear in the image's subject or features, ignoring case."""
+    text = " | ".join([tag.subject, *tag.features]).casefold()
+    return [k for k in rule.keywords if k.casefold() in text]

@@ -1,7 +1,7 @@
 """Image assignment in code: eligibility, scoring, picking order, findings. Synthetic slots and tags, no files."""
 from brochure.contracts.images import ImageTag
 from brochure.dpi import DpiStatus
-from brochure.layout import SlotRule, eligible, fit
+from brochure.layout import SlotRule, eligible, fit, score
 from brochure.slots import ResolvedSlot
 
 
@@ -53,3 +53,14 @@ def test_an_image_in_the_warn_band_is_eligible():
 
 def test_an_image_of_an_accepted_kind_that_passes_is_eligible():
     assert eligible(tag(kind="photo", width_px=PASS_PX[0], height_px=PASS_PX[1]), slot(), rule(kinds=["photo"]))
+
+
+# --- scoring ----------------------------------------------------------------------------------------------------------
+
+def test_an_image_whose_subject_or_features_match_a_preferred_keyword_scores_higher_than_one_that_does_not():
+    r = rule(keywords=["Pool", "deck"])
+    plain = tag(path="a.jpg", subject="Clubhouse lobby", features=["lounge"])
+    by_subject = tag(path="b.jpg", subject="Infinity POOL at sunset")
+    by_feature = tag(path="c.jpg", subject="Amenity view", features=["deck"])
+    assert score(by_subject, slot(), r) > score(plain, slot(), r)
+    assert score(by_feature, slot(), r) > score(plain, slot(), r)
