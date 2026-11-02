@@ -132,3 +132,22 @@ def test_export_stub_does_nothing_and_returns_nothing(llm, tmp_path, monkeypatch
     monkeypatch.chdir(tmp_path)
     assert stub_agents().export(sample_state(), llm) is None
     assert list(tmp_path.iterdir()) == []
+
+
+def test_layout_stub_puts_a_visible_placeholder_in_a_text_slot_that_has_no_copy_and_still_fills_every_slot(llm):
+    state, _ = laid_out(llm)
+    copy = {k: v for k, v in state.slot_copy.items() if k not in ("cover_tagline", "plan_note")}
+    spec = stub_agents().layout(state.model_copy(update={"slot_copy": copy}), llm)
+    fills = slot_fills(spec)
+    assert fills["cover_tagline"].text == "[copy needed: cover_tagline]"
+    assert fills["plan_note"].text == "[copy needed: plan_note]"
+    assert fills["cover_title"].text == copy["cover_title"]
+    assert len(spec.pages) == 8
+    assert all(len(fills[s.id].text) <= s.char_budget for s in text_slots())  # a placeholder fits every slot
+
+
+def test_layout_stub_with_no_copy_at_all_marks_every_text_slot_except_the_rera_number_taken_from_the_facts(llm):
+    state, _ = laid_out(llm)
+    fills = slot_fills(stub_agents().layout(state.model_copy(update={"slot_copy": {}}), llm))
+    placeholders = {i for i, f in fills.items() if f.text and f.text.startswith("[copy needed: ")}
+    assert placeholders == {s.id for s in text_slots()} - {"rera_number"}

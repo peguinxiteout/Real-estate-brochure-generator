@@ -71,7 +71,7 @@ def stub_agents(data: SampleData | None = None, qa=None) -> Agents:
             if slot.id in image_for_slot:
                 fills[slot.page][slot.id] = SlotFill(image_path=image_for_slot[slot.id])
             if slot.type == "text":
-                fills[slot.page][slot.id] = SlotFill(text=state.slot_copy[slot.id])
+                fills[slot.page][slot.id] = SlotFill(text=state.slot_copy.get(slot.id, f"[copy needed: {slot.id}]"))  # visible, so a reviewer sees the gap
             if slot.id == "rera_number":  # a legal fact: it comes from the facts, not from the copy
                 fills[slot.page][slot.id] = SlotFill(text=state.project_facts.rera_number)
             if slot.type == "qr":
