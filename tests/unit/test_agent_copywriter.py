@@ -358,3 +358,10 @@ def test_the_returned_copy_has_plain_spaces_and_hyphens_whatever_the_model_wrote
 def test_the_budget_is_checked_on_the_normalised_text_which_is_the_text_that_is_returned():
     copy, _ = play({**GOOD, "cover_title": "Aurelia\u202fHeights"})
     assert copy["cover_title"] == "Aurelia Heights" and len(copy["cover_title"]) <= OWNED["cover_title"]
+
+
+def test_the_prompt_says_each_highlight_line_states_a_fact_from_the_project_not_a_picture():
+    prompt = PROMPT_FILE.read_text(encoding="utf-8")
+    rule = next(line for line in prompt.splitlines() if "overview_highlights" in line and line[0].isdigit())
+    for word in ("fact", "configuration", "location", "possession", "amenity", "landmark", "picture"):
+        assert word in rule
