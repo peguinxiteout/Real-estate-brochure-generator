@@ -302,3 +302,56 @@ def test_a_stones_throw_written_with_a_curly_apostrophe_is_rejected_too():
 
 def test_the_new_phrases_are_whole_words_only():
     assert check("Hearts of oak, a primer location, minute detail, a walking track") == []
+
+
+# --- trimming: the safety net keeps whole sentences from the start --------------------------------------------------
+
+from brochure.agents.copy_checks import trim_to_budget  # noqa: E402
+
+S1 = "Aurelia Heights has 2 and 3 BHK homes."          # 38 characters
+S2 = "The podium garden sits at its centre."            # 37
+S3 = "The metro station is 1.2 km away."                # 33
+
+
+def trim(text, budget):
+    return trim_to_budget(text, budget, KNOWN)
+
+
+def test_it_keeps_the_longest_run_of_whole_sentences_from_the_start_that_fits():
+    text = f"{S1} {S2} {S3}"
+    assert trim(text, len(S1) + 1 + len(S2)) == f"{S1} {S2}"   # exactly fits two
+    assert trim(text, len(S1) + 1 + len(S2) + 20) == f"{S1} {S2}"  # three do not fit
+    assert trim(text, len(text) - 1) == f"{S1} {S2}"
+    assert trim(text, len(S1)) == S1
+
+
+def test_it_never_cuts_in_the_middle_of_a_sentence():
+    assert trim(f"{S1} {S2}", len(S1) - 1) is None  # not even the first sentence fits
+    assert trim("One long sentence with no end that goes on and on and on", 20) is None
+    for budget in range(1, 120):
+        result = trim(f"{S1} {S2} {S3}", budget)
+        assert result is None or result in (S1, f"{S1} {S2}", f"{S1} {S2} {S3}")
+
+
+def test_a_trimmed_text_is_checked_again_and_a_shorter_run_is_used_when_the_longer_one_fails():
+    bad = "It stands near Zorbaville."
+    text = f"{S1} {bad} {S3}"
+    assert trim(text, len(S1) + 1 + len(bad)) == S1            # S1 + bad fits but names an unknown place
+    assert trim(f"{bad} {S1}", 500) is None                    # the first sentence itself fails: nothing to keep
+
+
+def test_it_cuts_at_the_end_of_a_line_too():
+    lines = "Two towers of 2 and 3 BHK homes\nLandscaped podium garden\nGym and clubhouse\nJogging track"
+    assert trim(lines, len("Two towers of 2 and 3 BHK homes\nLandscaped podium garden\nGym and clubhouse")) == (
+        "Two towers of 2 and 3 BHK homes\nLandscaped podium garden\nGym and clubhouse")
+    assert trim(lines, 60) == "Two towers of 2 and 3 BHK homes\nLandscaped podium garden"
+
+
+def test_a_full_stop_inside_a_sentence_is_not_a_boundary():
+    text = "Homes of 780 sq. ft. carpet area are ready by Dec 2028. The metro station is 1.2 km away."
+    assert trim(text, 60) == "Homes of 780 sq. ft. carpet area are ready by Dec 2028."
+    assert trim(text, 30) is None
+
+
+def test_a_text_that_already_passes_is_returned_unchanged():
+    assert trim(f"{S1} {S2}", 500) == f"{S1} {S2}"

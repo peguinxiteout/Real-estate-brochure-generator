@@ -23,6 +23,7 @@ _THOUSANDS_SEPARATORS = r",\u00a0\u202f\u2009"  # a comma, or a non-breaking, na
 _NUMBER = re.compile(r"\d{1,3}(?:[" + _THOUSANDS_SEPARATORS + r"]\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?")
 _WORD = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)*")  # letters, with an inner apostrophe: Children's
 _SKIPPED_BEFORE_A_WORD = " \t\"'“‘([*•–—-"  # quotes, brackets and bullets in front of a sentence's first word
+_SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])[ \t]+(?=[A-Z])|[ \t]*\n\s*")
 _NUMBER_WORD = re.compile(r"\b(" + "|".join(NUMBER_WORDS) + r")\b", re.IGNORECASE)
 
 
@@ -130,6 +131,19 @@ def normalise_text(text: str) -> str:
     return "".join(
         " " if unicodedata.category(char) == "Zs" else _HYPHENS.get(char, char) for char in text
     )
+
+
+def trim_to_budget(text: str, char_budget: int, known: Known) -> str | None:
+    """The longest run of whole sentences (or whole lines) from the start of the text that passes every check, or None.
+
+    A sentence ends at . ! or ? followed by a space and a capital letter, so "sq. ft." and "No. 1" do not end one; a
+    line ends at a line break. Nothing is ever cut inside a sentence."""
+    text = text.strip()
+    cuts = [match.start() for match in _SENTENCE_BOUNDARY.finditer(text)]
+    for candidate in [text, *(text[:cut] for cut in reversed(cuts))]:
+        if candidate and not problems(candidate, char_budget, known):
+            return candidate
+    return None
 
 
 def problems(text: str, char_budget: int, known: Known) -> list[str]:
