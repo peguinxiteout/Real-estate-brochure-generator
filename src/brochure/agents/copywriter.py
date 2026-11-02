@@ -7,7 +7,7 @@ from brochure.agents.copy_checks import Known, known_from, problems
 from brochure.contracts.images import ImageTag
 from brochure.contracts.project import ProjectFacts
 from brochure.contracts.qa import QAIssue
-from brochure.llm import LLMClient, TaskSpec
+from brochure.llm import LLMClient, LLMError, TaskSpec
 from brochure.slots import ResolvedSlot, SlotTemplate, load_slots
 from brochure.verbatim import VERBATIM_SLOTS
 
@@ -83,18 +83,24 @@ def copywriter_agent(inputs: CopyInputs, llm: LLMClient) -> dict[str, str]:
     """
     known = known_from(inputs.facts, inputs.company_name)
     written: dict[str, str] = {}
-    pending, failed = list(inputs.slots), {}
+    pending, failed, error = list(inputs.slots), {}, None
     for attempt in (1, 2):
         payload = _payload(inputs, pending)
         if failed:
             payload["problems"] = {slot_id: "; ".join(reasons) for slot_id, reasons in failed.items()}
-        passed, failed = _judge(llm.complete(TASK, payload), pending, known)
+        try:
+            reply = llm.complete(TASK, payload)
+        except LLMError as exc:  # the client has already retried what it can: do not ask again
+            error = exc
+            break
+        passed, failed = _judge(reply, pending, known)
         written.update(passed)
         pending = [slot for slot in pending if slot.id in failed]
         if not pending:
             break
         logger.info("asking again for %s: %s", ", ".join(failed), failed)
     if pending:
-        details = "; ".join(f"{slot_id} ({'; '.join(reasons)})" for slot_id, reasons in failed.items())
-        logger.warning("the Copywriter left %d slot(s) without copy: %s", len(failed), details)
+        details = "; ".join(f"{slot.id} ({'; '.join(failed.get(slot.id, ['no reply']))})" for slot in pending)
+        cause = f"; the model could not be used: {error}" if error else ""
+        logger.warning("the Copywriter left %d slot(s) without copy: %s%s", len(pending), details, cause)
     return {slot.id: written[slot.id] for slot in inputs.slots if slot.id in written}

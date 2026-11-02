@@ -244,3 +244,32 @@ def test_no_warning_when_every_slot_passes(caplog):
     caplog.set_level(logging.INFO, logger="brochure.agents.copywriter")
     play(GOOD)
     assert warnings(caplog) == []
+
+
+# --- the client fails: the run never crashes ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("error", [
+    LLMRateLimited("rate limit still hit after 3 attempts"),
+    LLMBadReply("the model's reply is not valid JSON"),
+    LLMError("HTTP 500 from the provider"),
+])
+def test_a_client_error_on_the_first_call_gives_no_copy_and_one_warning_without_raising(error, caplog):
+    copy, llm = play(error)
+    assert copy == {}
+    assert len(llm.calls) == 1
+    (message,) = warnings(caplog)
+    assert str(error) in message
+    assert all(slot_id in message for slot_id in OWNED)
+
+
+def test_a_client_error_on_the_second_call_keeps_the_slots_that_passed_and_one_warning_names_the_rest(caplog):
+    copy, llm = play({**GOOD, "cover_title": TOO_LONG}, LLMRateLimited("rate limit"))
+    assert copy == {k: v for k, v in GOOD.items() if k != "cover_title"}
+    (message,) = warnings(caplog)
+    assert "cover_title" in message and "41 characters" in message and "rate limit" in message
+    assert "plan_note" not in message  # it passed
+
+
+def test_it_never_asks_again_after_a_client_error():
+    _, llm = play(LLMError("down"), GOOD)
+    assert len(llm.calls) == 1
