@@ -94,4 +94,7 @@ def copywriter_agent(inputs: CopyInputs, llm: LLMClient) -> dict[str, str]:
         if not pending:
             break
         logger.info("asking again for %s: %s", ", ".join(failed), failed)
+    if pending:
+        details = "; ".join(f"{slot_id} ({'; '.join(reasons)})" for slot_id, reasons in failed.items())
+        logger.warning("the Copywriter left %d slot(s) without copy: %s", len(failed), details)
     return {slot.id: written[slot.id] for slot in inputs.slots if slot.id in written}

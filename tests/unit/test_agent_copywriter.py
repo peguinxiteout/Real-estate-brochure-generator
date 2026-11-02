@@ -208,3 +208,39 @@ def test_a_second_reply_that_fixes_one_slot_and_not_the_other_keeps_the_fixed_on
     assert len(llm.calls) == 2
     assert copy["cover_title"] == GOOD["cover_title"]
     assert "plan_note" not in copy
+
+
+# --- a slot that still fails is left out, with one warning --------------------------------------------------------------
+
+def warnings(caplog) -> list[str]:
+    return [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+def test_a_slot_that_fails_twice_is_left_out_and_exactly_one_warning_says_which_and_why(caplog):
+    bad = {**GOOD, "cover_title": TOO_LONG}
+    copy, llm = play(bad, bad)
+    assert len(llm.calls) == 2  # asked once more, not again
+    assert set(copy) == set(OWNED) - {"cover_title"}
+    (message,) = warnings(caplog)
+    assert "cover_title" in message and "41 characters, the limit is 40" in message
+
+
+def test_several_slots_that_fail_twice_share_one_warning(caplog):
+    bad = {**GOOD, "cover_title": TOO_LONG, "plan_note": "", "about_headline": "Near Zorbaville"}
+    copy, _ = play(bad, bad)
+    assert set(copy) == set(OWNED) - {"cover_title", "plan_note", "about_headline"}
+    (message,) = warnings(caplog)
+    assert all(slot_id in message for slot_id in ("cover_title", "plan_note", "about_headline"))
+    assert "Zorbaville" in message and "empty" in message
+
+
+def test_the_reason_in_the_warning_is_the_one_from_the_second_attempt(caplog):
+    play({**GOOD, "cover_title": TOO_LONG}, {**GOOD, "cover_title": "Heights in Zorbaville"})
+    (message,) = warnings(caplog)
+    assert "Zorbaville" in message and "41 characters" not in message
+
+
+def test_no_warning_when_every_slot_passes(caplog):
+    caplog.set_level(logging.INFO, logger="brochure.agents.copywriter")
+    play(GOOD)
+    assert warnings(caplog) == []
