@@ -123,4 +123,6 @@ def problems(text: str, char_budget: int, known: Known) -> list[str]:
         reasons.append(f"not in the project facts: name {', '.join(unknown)}")
     if money := _listed_in(text, "copy_money_words.txt"):
         reasons.append(f"money or investment wording: {', '.join(money)}")
+    if banned := _listed_in(text, "copy_banned_phrases.txt"):
+        reasons.append(f"superlative or promise: {', '.join(banned)}")
     return reasons

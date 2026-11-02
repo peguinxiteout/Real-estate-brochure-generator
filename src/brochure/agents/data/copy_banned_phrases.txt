@@ -1,0 +1,12 @@
+# Superlatives and promises the copy may not use. Matched as whole words or phrases, any case.
+# One entry per line; spaces in a phrase match any run of spaces. Blank lines and lines starting with # are ignored.
+best
+No. 1
+number one
+largest
+finest
+guaranteed
+assured returns
+award-winning
+world-class
+unmatched

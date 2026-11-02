@@ -173,3 +173,33 @@ def test_the_money_words_are_a_data_file():
 
     words = (DATA_DIR / "copy_money_words.txt").read_text(encoding="utf-8")
     assert {"\u20b9", "Rs", "INR", "lakh", "crore", "price", "EMI", "returns", "investment"} <= set(words.split())
+
+
+# --- superlatives and promises ---------------------------------------------------------------------------------------
+
+BANNED = ["best", "No. 1", "number one", "largest", "finest", "guaranteed", "assured returns", "award-winning", "world-class", "unmatched"]
+
+
+@pytest.mark.parametrize("phrase", BANNED)
+def test_each_banned_phrase_is_rejected_and_the_reason_names_it(phrase):
+    reasons = check(f"Homes that are {phrase} in the area")
+    assert any("superlative" in r and phrase in r for r in reasons)
+
+
+def test_banned_phrases_match_in_any_case_and_inside_a_hyphenated_word():
+    assert any("best" in r for r in check("THE BEST views"))
+    assert any("best" in r for r in check("a best-in-class pool"))
+    assert any("world-class" in r for r in check("World-Class amenities"))
+    assert any("number one" in r for r in check("a number   one address"))
+
+
+def test_banned_phrases_are_whole_words_only():
+    assert check("They bestow calm, with bestsellers and unmatchedly quiet corners") == []
+    assert check("A bigger pool, the largely green podium") == []
+
+
+def test_the_banned_phrases_are_a_data_file():
+    from brochure.agents.copy_checks import DATA_DIR
+
+    lines = (DATA_DIR / "copy_banned_phrases.txt").read_text(encoding="utf-8").splitlines()
+    assert set(BANNED) <= {line.strip() for line in lines}
