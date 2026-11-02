@@ -15,8 +15,7 @@ def render_blank_pdf(page_count: int, path: Path, config: PrintConfig = PRINT) -
 
 
 def _blank_html(page_count: int, config: PrintConfig) -> str:
-    sheets = "
-".join(f'<section class="sheet"><p class="number">{n}</p></section>' for n in range(1, page_count + 1))
+    sheets = "\n".join(f'<section class="sheet"><p class="number">{n}</p></section>' for n in range(1, page_count + 1))
     return f"""<!doctype html>
 <html><head><meta charset="utf-8"><style>
 @page {{ size: {config.page_width_mm}mm {config.page_height_mm}mm; margin: 0; }}
