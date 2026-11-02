@@ -86,3 +86,65 @@ def test_each_distinct_number_is_reported_once_in_one_reason():
     reasons = check("5 or 5 or 6 or nine")
     assert len(reasons) == 1
     assert reasons[0].count("5") == 1 and "6" in reasons[0] and "nine" in reasons[0]
+
+
+# --- names: a capitalised word inside a sentence must come from the facts, the company name or the allow-list ---------
+
+def test_an_invented_place_name_fails_and_the_reason_names_it():
+    reasons = check("Close to Hinjewadi and the metro")
+    assert len(reasons) == 1 and "Hinjewadi" in reasons[0] and "facts" in reasons[0]
+
+
+@pytest.mark.parametrize("text", [
+    "A short walk to Meridian Metro Station",   # a landmark
+    "Near Lakeside Hospital and Orchard International School",
+    "On Meridian Park Road in Pune, Maharashtra",   # the location and the RERA state
+    "Aurelia Heights has a Clubhouse",         # the project name; an amenity
+    "Built by Kestrel Urbanscapes",            # the company name
+    "Handed over by KESTREL URBANSCAPES",      # any case
+    "Kestrel's team and Pune's skyline",       # a possessive is the same name
+])
+def test_a_name_from_the_facts_or_the_company_name_passes(text):
+    assert check(text) == []
+
+
+def test_the_first_word_of_a_sentence_or_line_is_not_checked_as_a_name():
+    assert check("Hinjewadi is far away") == []
+    assert check("Calm streets. Zorbaville is a place") == []
+    assert check("Is it quiet? Yes. Tranquil, too! Serene") == []
+    assert check("Two towers\nLandscaped garden\n- Jogging track\n\u2022 Greenery") == []
+    assert check('"Peaceful" living') == []
+
+
+def test_a_capitalised_word_after_a_comma_or_a_colon_is_checked():
+    assert len(check("Calm, Zorbaville and quiet")) == 1
+    assert len(check("Where: Zorbaville")) == 1
+
+
+def test_lowercase_words_are_never_checked_as_names():
+    assert check("a splendid vista over rooftops") == []
+
+
+def test_common_capitalised_words_from_the_allow_list_pass():
+    assert check("Handover in March, RERA registered, 2 BHK homes, sq ft and km") == []
+
+
+def test_unknown_all_caps_words_fail_like_any_other_name():
+    assert len(check("Fitted with AC units")) == 1
+
+
+def test_several_invented_names_are_listed_once_each_in_one_reason():
+    reasons = check("Near Zorbaville, Hinjewadi and Zorbaville")
+    assert len(reasons) == 1
+    assert reasons[0].count("Zorbaville") == 1 and "Hinjewadi" in reasons[0]
+
+
+def test_the_allow_list_is_a_data_file_shipped_with_the_package():
+    import tomllib
+    from pathlib import Path
+
+    from brochure.agents.copy_checks import DATA_DIR
+
+    assert (DATA_DIR / "copy_name_allowlist.txt").is_file()
+    pyproject = tomllib.loads((Path(__file__).parents[2] / "pyproject.toml").read_text(encoding="utf-8"))
+    assert "agents/data/*.txt" in pyproject["tool"]["setuptools"]["package-data"]["brochure"]

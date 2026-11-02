@@ -1,8 +1,11 @@
 """The checks on one slot of copy: facts are strict, wording is free. Each check gives short readable reasons."""
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 from brochure.contracts.project import ProjectFacts
+
+DATA_DIR = Path(__file__).parent / "data"
 
 NUMBER_WORDS = {
     word: value
@@ -13,6 +16,8 @@ NUMBER_WORDS = {
     )
 }
 _NUMBER = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?")  # a comma only counts inside 1,090
+_WORD = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)*")  # letters, with an inner apostrophe: Children's
+_SKIPPED_BEFORE_A_WORD = " \t\"'“‘([*•–—-"  # quotes, brackets and bullets in front of a sentence's first word
 _NUMBER_WORD = re.compile(r"\b(" + "|".join(NUMBER_WORDS) + r")\b", re.IGNORECASE)
 
 
@@ -22,6 +27,27 @@ class Known:
 
     numbers: frozenset[float]
     words: frozenset[str]
+
+
+def _data_lines(name: str) -> list[str]:
+    """The entries of a data file: one per line, blank lines and # comments skipped."""
+    lines = (DATA_DIR / name).read_text(encoding="utf-8").splitlines()
+    return [line.strip() for line in lines if line.strip() and not line.lstrip().startswith("#")]
+
+
+def _name_key(word: str) -> str:
+    """A word as compared: lower case, without a possessive ('s)."""
+    word = word.casefold()
+    return word[:-2] if word.endswith(("'s", "’s")) else word
+
+
+def _words_in(text: str) -> list[tuple[str, bool]]:
+    """(word, starts a sentence or line) for every word in the text."""
+    words = []
+    for match in _WORD.finditer(text):
+        before = text[: match.start()].rstrip(_SKIPPED_BEFORE_A_WORD)
+        words.append((match.group(), before == "" or before.endswith(("\n", ".", "!", "?"))))
+    return words
 
 
 def _numbers_in(text: str) -> list[tuple[str, float]]:
@@ -45,13 +71,14 @@ def _strings_and_numbers(value):
 
 
 def known_from(facts: ProjectFacts, company_name: str) -> Known:
-    numbers = set()
-    for leaf in _strings_and_numbers(facts.model_dump()):
+    numbers, words = set(), {_name_key(w) for w in _data_lines("copy_name_allowlist.txt")}
+    for leaf in [*_strings_and_numbers(facts.model_dump()), company_name]:
         if isinstance(leaf, str):
             numbers.update(value for _, value in _numbers_in(leaf))
+            words.update(_name_key(word) for word, _ in _words_in(leaf))
         else:
             numbers.add(float(leaf))
-    return Known(frozenset(numbers), frozenset())
+    return Known(frozenset(numbers), frozenset(words))
 
 
 def _unknown_numbers(text: str, known: Known) -> list[str]:
@@ -60,6 +87,15 @@ def _unknown_numbers(text: str, known: Known) -> list[str]:
         if value not in known.numbers:
             unknown.setdefault(written, None)
     return list(unknown)
+
+
+def _unknown_names(text: str, known: Known) -> list[str]:
+    """Capitalised words that are not the first word of a sentence and that nothing in the facts accounts for."""
+    unknown = {}
+    for word, starts_sentence in _words_in(text):
+        if word[0].isupper() and not starts_sentence and _name_key(word) not in known.words:
+            unknown.setdefault(_name_key(word), word)
+    return list(unknown.values())
 
 
 def problems(text: str, char_budget: int, known: Known) -> list[str]:
@@ -71,4 +107,6 @@ def problems(text: str, char_budget: int, known: Known) -> list[str]:
         reasons.append(f"{len(text)} characters, the limit is {char_budget}")
     if unknown := _unknown_numbers(text, known):
         reasons.append(f"not in the project facts: number {', '.join(unknown)}")
+    if unknown := _unknown_names(text, known):
+        reasons.append(f"not in the project facts: name {', '.join(unknown)}")
     return reasons
