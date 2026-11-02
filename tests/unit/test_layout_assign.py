@@ -71,3 +71,12 @@ def test_an_image_in_the_pass_band_scores_higher_than_one_in_the_warn_band():
     warning = tag(path="b.jpg", width_px=WARN_PX[0], height_px=WARN_PX[1])  # the same shape
     assert fit(passing, slot())[1] == DpiStatus.PASS and fit(warning, slot())[1] == DpiStatus.WARN
     assert score(passing, slot(), rule()) > score(warning, slot(), rule())
+
+
+def test_an_image_closer_to_the_slots_shape_scores_higher_because_less_is_cropped():
+    # the slot is 88 x 60 (1.47); both images pass at 300 DPI and have the same grade
+    close = tag(path="a.jpg", width_px=1500, height_px=1000)   # 1.50
+    wide = tag(path="b.jpg", width_px=2200, height_px=1000)    # 2.20
+    tall = tag(path="c.jpg", width_px=1100, height_px=1500)    # 0.73
+    assert score(close, slot(), rule()) > score(wide, slot(), rule())
+    assert score(close, slot(), rule()) > score(tall, slot(), rule())

@@ -3,6 +3,7 @@
 The rules (accepted kinds, preferred subject keywords, the order in which slots pick) live in the template's
 layout_rules.json. They belong to the layout, not to the shared contracts.
 """
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -92,7 +93,13 @@ def score(tag: ImageTag, slot: ResolvedSlot, rule: SlotRule, weights: ScoreWeigh
     return (
         weights.keyword * len(matched_keywords(tag, rule))
         + (weights.dpi_pass if band == DpiStatus.PASS else 0.0)
+        - weights.aspect * aspect_mismatch(tag, slot)
     )
+
+
+def aspect_mismatch(tag: ImageTag, slot: ResolvedSlot) -> float:
+    """|ln(image ratio / slot ratio)|: 0 when the shapes match, the same for twice too wide as for twice too tall."""
+    return abs(math.log((tag.width_px / tag.height_px) / (slot.bleed_width_mm / slot.bleed_height_mm)))
 
 
 def matched_keywords(tag: ImageTag, rule: SlotRule) -> list[str]:
