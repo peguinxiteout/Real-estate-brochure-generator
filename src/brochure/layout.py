@@ -129,14 +129,37 @@ def assign_images(template: SlotTemplate, rules: LayoutRules, tags: list[ImageTa
     whose path sorts first, so the result does not depend on the order of `tags`."""
     slots = {s.id: s for s in template.slots}
     placements: dict[str, Placement] = {}
+    findings: list[QAIssue] = []
     taken: set[str] = set()
     for rule in sorted(rules.rules, key=lambda r: r.priority):
         slot = slots[rule.slot]
         candidates = [t for t in tags if t.path not in taken and eligible(t, slot, rule)]
         if not candidates:
+            findings.append(_warning("layout.slot_unfilled", slot.page, _why_unfilled(slot, rule, tags, taken)))
             continue
         best = min(candidates, key=lambda t: (-score(t, slot, rule), t.path))
         dpi, band = fit(best, slot)
         placements[slot.id] = Placement(slot.id, best.path, dpi, band)
         taken.add(best.path)
-    return Assignment(placements, [])
+    return Assignment(placements, findings)
+
+
+def _warning(check: str, page: int | None, note: str) -> QAIssue:
+    """A finding for the reviewer: a warning that sends the run nowhere (layout cannot do better with these images)."""
+    return QAIssue(check=check, page=page, severity="warning", note=note, route_to="none")
+
+
+def _dpi_text(dpi: float) -> str:
+    return f"{int(dpi)} DPI"  # rounded down, so 249.9 is never shown as 250
+
+
+def _why_unfilled(slot: ResolvedSlot, rule: SlotRule, tags: list[ImageTag], taken: set[str]) -> str:
+    kinds = " or ".join(rule.kinds)
+    of_kind = [t for t in tags if t.kind in rule.kinds]
+    if not of_kind:
+        return f"{slot.id}: no image of kind {kinds}"
+    too_small = sorted(((fit(t, slot)[0], t.path) for t in of_kind if t.path not in taken), key=lambda x: (-x[0], x[1]))
+    if not too_small:
+        return f"{slot.id}: every image of kind {kinds} that fits is used in another slot"
+    listed = ", ".join(f"{path} is {_dpi_text(dpi)}" for dpi, path in too_small)
+    return f"{slot.id}: no image of kind {kinds} with enough resolution; {listed}"
