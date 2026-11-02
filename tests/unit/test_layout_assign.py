@@ -156,13 +156,13 @@ def one(assignment, check):
     return found[0]
 
 
-def test_an_unfilled_slot_is_a_warning_on_its_page_naming_the_images_that_were_too_small_and_their_dpi():
+def test_an_unfilled_slot_is_an_error_on_its_page_naming_the_images_that_were_too_small_and_their_dpi():
     pairs = [(slot("plan_img_b", page=5), rule("plan_img_b", kinds=["floor_plan"], priority=1))]
     tags = [tag(path="plan.jpg", kind="floor_plan", width_px=720, height_px=491),   # 207 DPI in 88 x 60
             tag(path="tiny.jpg", kind="floor_plan", width_px=400, height_px=273),
             tag(path="pool.jpg", kind="render", width_px=2000, height_px=1364)]     # wrong kind: not mentioned
     issue = one(assign(pairs, tags), "layout.slot_unfilled")
-    assert (issue.severity, issue.route_to, issue.page) == ("warning", "none", 5)
+    assert (issue.severity, issue.route_to, issue.page) == ("error", "none", 5)
     assert issue.note == ("plan_img_b: no image of kind floor_plan with enough resolution; "
                           "plan.jpg is 207 DPI, tiny.jpg is 115 DPI")
 

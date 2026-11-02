@@ -252,13 +252,14 @@ The weights are ordered so that what the image shows comes first, then print qua
 **Picking.** Slots pick in priority order; each takes its best-scoring eligible image that is not used yet, so an image
 is used at most once. Ties go to the image whose path sorts first, so the input order never matters.
 
-**Warnings.** Every problem becomes a `QAIssue` in `spec.qa_warnings` (severity `warning`, `route_to` `none`):
+**Warnings.** Every problem becomes a `QAIssue` in `spec.qa_warnings` with `route_to` `none` (no agent can fix it; the
+user must supply a better image). An unfilled slot is an `error`; the other two are `warning`s:
 
-- `layout.slot_unfilled`, on the slot's page: no image of its kind, every image of its kind that fits is used
+- `layout.slot_unfilled` (severity `error`), on the slot's page: no image of its kind, every image of its kind that fits is used
   elsewhere, or the images of its kind were too small (each named with its DPI, rounded down). The slot is left out of
   its page's slots; `PageSpec.slots` is a plain dict, so the contract allows it. No placeholder image is written.
-- `layout.dpi_warn`, on the slot's page: an image placed in the warn band, with its effective DPI.
-- `layout.image_unused`, no page: an image used nowhere, and why (no slot accepts its kind, too small for every slot
+- `layout.dpi_warn` (severity `warning`), on the slot's page: an image placed in the warn band, with its effective DPI.
+- `layout.image_unused` (severity `warning`), no page: an image used nowhere, and why (no slot accepts its kind, too small for every slot
   that does, or every slot it fits took a better image).
 
 QA issues that go to the reviewer are added after these. A QA issue routed to `layout`, and `changes_requested`, re-run
@@ -569,7 +570,7 @@ For their intended slots, three images fail the DPI rule and one warns:
 
 The other eight pass. Having bad images on purpose lets the QA and Layout code be tested against failures without
 needing real photos. A test pins exactly which images fail and which warns. The rule-based layout places none of the
-three failing images (their slots stay unfilled, with a warning) and places the clubhouse with a warn-band warning.
+three failing images (their slots stay unfilled, each with an error) and places the clubhouse with a warn-band warning.
 
 ## 11. How we work
 

@@ -55,7 +55,9 @@ def test_the_real_layout_places_the_assigned_images_and_leaves_unfilled_slots_ou
 def test_the_real_layouts_findings_are_the_specs_qa_warnings():
     spec = real_agents().layout(state_before_layout(), FakeLLM({}))
     assert spec.qa_warnings == assign_images(DATA.template, RULES, DATA.image_tags).findings
-    assert len(spec.qa_warnings) == 7 and all(w.severity == "warning" and w.route_to == "none" for w in spec.qa_warnings)
+    assert len(spec.qa_warnings) == 7 and all(w.route_to == "none" for w in spec.qa_warnings)
+    severity = {w.check: w.severity for w in spec.qa_warnings}
+    assert severity == {"layout.slot_unfilled": "error", "layout.dpi_warn": "warning", "layout.image_unused": "warning"}
 
 
 def test_text_logos_and_the_qr_are_filled_exactly_as_the_stub_fills_them():

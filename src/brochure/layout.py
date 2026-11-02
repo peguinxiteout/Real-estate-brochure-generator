@@ -136,26 +136,27 @@ def assign_images(template: SlotTemplate, rules: LayoutRules, tags: list[ImageTa
         slot = slots[rule.slot]
         candidates = [t for t in tags if t.path not in taken and eligible(t, slot, rule)]
         if not candidates:
-            findings.append(_warning("layout.slot_unfilled", slot.page, _why_unfilled(slot, rule, tags, taken)))
+            # an error, not a warning: a slot is empty until the user supplies a better image
+            findings.append(_finding("layout.slot_unfilled", slot.page, _why_unfilled(slot, rule, tags, taken), "error"))
             continue
         best = min(candidates, key=lambda t: (-score(t, slot, rule), t.path))
         dpi, band = fit(best, slot)
         placements[slot.id] = Placement(slot.id, best.path, dpi, band)
         if band == DpiStatus.WARN:
-            findings.append(_warning(
+            findings.append(_finding(
                 "layout.dpi_warn", slot.page,
                 f"{slot.id}: {best.path} is {_dpi_text(dpi)}, below the {PRINT.target_dpi} DPI target (it prints, softer)",
             ))
         taken.add(best.path)
     for tag in sorted(tags, key=lambda t: t.path):
         if tag.path not in taken:
-            findings.append(_warning("layout.image_unused", None, _why_unused(tag, rules, slots)))
+            findings.append(_finding("layout.image_unused", None, _why_unused(tag, rules, slots)))
     return Assignment(placements, findings)
 
 
-def _warning(check: str, page: int | None, note: str) -> QAIssue:
-    """A finding for the reviewer: a warning that sends the run nowhere (layout cannot do better with these images)."""
-    return QAIssue(check=check, page=page, severity="warning", note=note, route_to="none")
+def _finding(check: str, page: int | None, note: str, severity: str = "warning") -> QAIssue:
+    """A finding for the reviewer. route_to is always "none": no agent can fix it with the images it has."""
+    return QAIssue(check=check, page=page, severity=severity, note=note, route_to="none")
 
 
 def _dpi_text(dpi: float) -> str:
