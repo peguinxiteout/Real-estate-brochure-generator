@@ -88,7 +88,11 @@ WEIGHTS = ScoreWeights()
 
 def score(tag: ImageTag, slot: ResolvedSlot, rule: SlotRule, weights: ScoreWeights = WEIGHTS) -> float:
     """How well an eligible image suits the slot."""
-    return weights.keyword * len(matched_keywords(tag, rule))
+    _, band = fit(tag, slot)
+    return (
+        weights.keyword * len(matched_keywords(tag, rule))
+        + (weights.dpi_pass if band == DpiStatus.PASS else 0.0)
+    )
 
 
 def matched_keywords(tag: ImageTag, rule: SlotRule) -> list[str]:

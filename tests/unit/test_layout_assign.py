@@ -64,3 +64,10 @@ def test_an_image_whose_subject_or_features_match_a_preferred_keyword_scores_hig
     by_feature = tag(path="c.jpg", subject="Amenity view", features=["deck"])
     assert score(by_subject, slot(), r) > score(plain, slot(), r)
     assert score(by_feature, slot(), r) > score(plain, slot(), r)
+
+
+def test_an_image_in_the_pass_band_scores_higher_than_one_in_the_warn_band():
+    passing = tag(path="a.jpg", width_px=PASS_PX[0], height_px=PASS_PX[1])
+    warning = tag(path="b.jpg", width_px=WARN_PX[0], height_px=WARN_PX[1])  # the same shape
+    assert fit(passing, slot())[1] == DpiStatus.PASS and fit(warning, slot())[1] == DpiStatus.WARN
+    assert score(passing, slot(), rule()) > score(warning, slot(), rule())
