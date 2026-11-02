@@ -182,3 +182,17 @@ def test_an_unfilled_slot_whose_images_all_went_to_other_slots_says_so():
 def test_a_filled_slot_gives_no_unfilled_warning():
     pairs = [(slot("s1"), rule("s1", priority=1))]
     assert findings(assign(pairs, [tag(path="a.jpg")]), "layout.slot_unfilled") == []
+
+
+def test_an_image_placed_in_the_warn_band_is_a_warning_with_its_effective_dpi():
+    pairs = [(slot("amenity_img_b", page=4), rule("amenity_img_b", priority=1))]
+    result = assign(pairs, [tag(path="club.jpg", width_px=1000, height_px=682)])  # 288.6 DPI in 88 x 60
+    assert placed(result) == {"amenity_img_b": "club.jpg"}
+    issue = one(result, "layout.dpi_warn")
+    assert (issue.severity, issue.route_to, issue.page) == ("warning", "none", 4)
+    assert issue.note == "amenity_img_b: club.jpg is 288 DPI, below the 300 DPI target (it prints, softer)"
+
+
+def test_an_image_placed_in_the_pass_band_gives_no_dpi_warning():
+    pairs = [(slot("s1"), rule("s1", priority=1))]
+    assert findings(assign(pairs, [tag(path="a.jpg", width_px=PASS_PX[0], height_px=PASS_PX[1])]), "layout.dpi_warn") == []

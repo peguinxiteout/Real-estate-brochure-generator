@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from brochure.contracts.images import ImageTag
 from brochure.contracts.qa import QAIssue
 from brochure.dpi import DpiStatus, classify_dpi, effective_dpi
+from brochure.print_config import PRINT
 from brochure.slots import ResolvedSlot, SlotTemplate
 
 LOGO_SLOTS = ("cover_logo", "back_logo")  # filled from the brand kit, never from the project's images
@@ -140,6 +141,11 @@ def assign_images(template: SlotTemplate, rules: LayoutRules, tags: list[ImageTa
         best = min(candidates, key=lambda t: (-score(t, slot, rule), t.path))
         dpi, band = fit(best, slot)
         placements[slot.id] = Placement(slot.id, best.path, dpi, band)
+        if band == DpiStatus.WARN:
+            findings.append(_warning(
+                "layout.dpi_warn", slot.page,
+                f"{slot.id}: {best.path} is {_dpi_text(dpi)}, below the {PRINT.target_dpi} DPI target (it prints, softer)",
+            ))
         taken.add(best.path)
     return Assignment(placements, findings)
 
