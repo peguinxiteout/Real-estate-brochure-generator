@@ -15,7 +15,7 @@ def copy():
 
 def test_verbatim_copy_has_exactly_the_verbatim_slots_and_all_of_them_are_text_slots_of_the_template():
     assert set(copy()) == set(VERBATIM_SLOTS)
-    assert len(VERBATIM_SLOTS) == len(set(VERBATIM_SLOTS)) == 10
+    assert len(VERBATIM_SLOTS) == len(set(VERBATIM_SLOTS)) == 11
     assert set(VERBATIM_SLOTS) <= text_ids()
 
 
@@ -36,3 +36,9 @@ def test_lists_are_one_line_per_item_straight_from_the_facts():
     assert text["location_landmarks"].splitlines()[0] == "Meridian Metro Station, 1.2 km"
     assert text["specs_list"].splitlines()[0] == "Flooring: Vitrified tiles in living and bedrooms"
     assert text["location_address"] == "Meridian Park Road, Pune"
+
+
+def test_the_cover_title_is_the_exact_project_name_from_the_facts():
+    state = sample_state()
+    assert verbatim_copy(state.project_facts, state.brand_kit)["cover_title"] == "Aurelia Heights" == state.project_facts.name
+    assert "cover_title" in VERBATIM_SLOTS

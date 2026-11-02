@@ -3,7 +3,7 @@ from brochure.contracts.brand import BrandKit
 from brochure.contracts.project import ProjectFacts
 
 VERBATIM_SLOTS: tuple[str, ...] = (
-    "cover_rera_line", "rera_number", "location_address", "location_landmarks", "amenities_list",
+    "cover_title", "cover_rera_line", "rera_number", "location_address", "location_landmarks", "amenities_list",
     "config_table", "specs_list", "about_text", "contact_block", "disclaimer",
 )
 
@@ -13,6 +13,7 @@ def verbatim_copy(facts: ProjectFacts, brand: BrandKit) -> dict[str, str]:
     contact = brand.contact
     lines = "\n".join
     return {
+        "cover_title": facts.name,
         "cover_rera_line": f"RERA No. {facts.rera_number}",
         "rera_number": facts.rera_number,
         "location_address": facts.location,

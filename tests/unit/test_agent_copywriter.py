@@ -16,7 +16,7 @@ from tests.support import GOOD_COPY as GOOD, qa_issue, sample_state
 ROOT = Path(__file__).parents[2]
 TEMPLATE = load_sample_data().template
 OWNED = {
-    "cover_title": 40, "cover_tagline": 90, "overview_headline": 60, "overview_intro": 600, "overview_highlights": 240,
+    "cover_tagline": 90, "overview_headline": 60, "overview_intro": 600, "overview_highlights": 240,
     "amenities_blurb": 250, "plan_note": 160, "about_headline": 60,
 }
 
@@ -58,9 +58,9 @@ def test_the_task_schema_is_strict_with_one_required_string_property_per_owned_s
 
 
 def test_the_schema_follows_the_slots_it_is_given():
-    spec = copy_task_spec([s for s in owned_slots(TEMPLATE) if s.id in ("cover_title", "plan_note")])
-    assert list(spec.schema["properties"]) == ["cover_title", "plan_note"]
-    assert spec.schema["required"] == ["cover_title", "plan_note"]
+    spec = copy_task_spec([s for s in owned_slots(TEMPLATE) if s.id in ("cover_tagline", "plan_note")])
+    assert list(spec.schema["properties"]) == ["cover_tagline", "plan_note"]
+    assert spec.schema["required"] == ["cover_tagline", "plan_note"]
 
 
 def test_the_real_client_knows_the_task_with_the_prompt_file_as_its_system_message():
@@ -78,9 +78,9 @@ def test_one_copy_write_call_without_images_and_the_text_of_every_owned_slot_com
 
 
 def test_text_is_stripped_and_a_slot_the_code_fills_verbatim_is_never_in_the_result_even_if_the_model_writes_it():
-    reply = {**GOOD, "cover_title": "  Aurelia Heights \n", "disclaimer": "Buy now", "rera_number": "P1", "about_text": "x"}
+    reply = {**GOOD, "cover_tagline": "  Aurelia Heights \n", "disclaimer": "Buy now", "rera_number": "P1", "about_text": "x"}
     copy, _ = run(reply)
-    assert copy["cover_title"] == "Aurelia Heights"
+    assert copy["cover_tagline"] == "Aurelia Heights"
     assert not set(copy) & set(VERBATIM_SLOTS)
     assert set(copy) == set(OWNED)
 
@@ -146,11 +146,11 @@ def play(*answers, **changes):
     return copywriter_agent(inputs(**changes), llm), llm
 
 
-TOO_LONG = "A" * 41  # cover_title has 40 characters
+TOO_LONG = "A" * 91  # cover_tagline has 90 characters
 
 
 def test_an_over_budget_slot_is_asked_for_again_and_the_second_text_is_used():
-    copy, llm = play({**GOOD, "cover_title": TOO_LONG}, GOOD)
+    copy, llm = play({**GOOD, "cover_tagline": TOO_LONG}, GOOD)
     assert len(llm.calls) == 2
     assert copy == GOOD
 
@@ -163,35 +163,35 @@ def test_an_empty_slot_is_asked_for_again():
 
 def test_a_reply_without_a_slot_or_with_a_non_string_for_it_counts_as_a_failure_of_that_slot():
     incomplete = {k: v for k, v in GOOD.items() if k != "plan_note"}
-    copy, llm = play({**incomplete, "cover_title": 7}, GOOD)
+    copy, llm = play({**incomplete, "cover_tagline": 7}, GOOD)
     assert len(llm.calls) == 2
-    assert [s["id"] for s in llm.calls[1][1]["slots"]] == ["cover_title", "plan_note"]
+    assert [s["id"] for s in llm.calls[1][1]["slots"]] == ["cover_tagline", "plan_note"]
     assert copy == GOOD
 
 
 def test_the_second_call_sends_only_the_failing_slots_with_the_reason_for_each_and_the_rest_unchanged():
-    _, llm = play({**GOOD, "cover_title": TOO_LONG, "plan_note": ""}, GOOD)
+    _, llm = play({**GOOD, "cover_tagline": TOO_LONG, "plan_note": ""}, GOOD)
     first, second = llm.calls[0][1], llm.calls[1][1]
     assert "problems" not in first
-    assert [s["id"] for s in second["slots"]] == ["cover_title", "plan_note"]
-    assert set(second["problems"]) == {"cover_title", "plan_note"}
-    assert "41" in second["problems"]["cover_title"] and "40" in second["problems"]["cover_title"]
+    assert [s["id"] for s in second["slots"]] == ["cover_tagline", "plan_note"]
+    assert set(second["problems"]) == {"cover_tagline", "plan_note"}
+    assert "91" in second["problems"]["cover_tagline"] and "90" in second["problems"]["cover_tagline"]
     assert "empty" in second["problems"]["plan_note"]
     assert {k: v for k, v in second.items() if k not in ("slots", "problems")} == {k: v for k, v in first.items() if k != "slots"}
 
 
 def test_slots_that_passed_the_first_time_are_kept_whatever_the_second_reply_says_about_them():
-    second = {**GOOD, "cover_title": "Aurelia Heights, Pune", "plan_note": "REWRITTEN", "about_headline": "x" * 500}
-    copy, _ = play({**GOOD, "cover_title": TOO_LONG}, second)
-    assert copy["cover_title"] == "Aurelia Heights, Pune"
+    second = {**GOOD, "cover_tagline": "Aurelia Heights, Pune", "plan_note": "REWRITTEN", "about_headline": "x" * 500}
+    copy, _ = play({**GOOD, "cover_tagline": TOO_LONG}, second)
+    assert copy["cover_tagline"] == "Aurelia Heights, Pune"
     assert copy["plan_note"] == GOOD["plan_note"]
     assert copy["about_headline"] == GOOD["about_headline"]
 
 
 def test_a_second_reply_that_fixes_one_slot_and_not_the_other_keeps_the_fixed_one():
-    copy, llm = play({**GOOD, "cover_title": TOO_LONG, "plan_note": ""}, {**GOOD, "plan_note": ""})
+    copy, llm = play({**GOOD, "cover_tagline": TOO_LONG, "plan_note": ""}, {**GOOD, "plan_note": ""})
     assert len(llm.calls) == 2
-    assert copy["cover_title"] == GOOD["cover_title"]
+    assert copy["cover_tagline"] == GOOD["cover_tagline"]
     assert "plan_note" not in copy
 
 
@@ -202,27 +202,27 @@ def warnings(caplog) -> list[str]:
 
 
 def test_a_slot_that_fails_twice_is_left_out_and_exactly_one_warning_says_which_and_why(caplog):
-    bad = {**GOOD, "cover_title": TOO_LONG}
+    bad = {**GOOD, "cover_tagline": TOO_LONG}
     copy, llm = play(bad, bad)
     assert len(llm.calls) == 2  # asked once more, not again
-    assert set(copy) == set(OWNED) - {"cover_title"}
+    assert set(copy) == set(OWNED) - {"cover_tagline"}
     (message,) = warnings(caplog)
-    assert "cover_title" in message and "41 characters, the limit is 40" in message
+    assert "cover_tagline" in message and "91 characters, the limit is 90" in message
 
 
 def test_several_slots_that_fail_twice_share_one_warning(caplog):
-    bad = {**GOOD, "cover_title": TOO_LONG, "plan_note": "", "about_headline": "Near Zorbaville"}
+    bad = {**GOOD, "cover_tagline": TOO_LONG, "plan_note": "", "about_headline": "Near Zorbaville"}
     copy, _ = play(bad, bad)
-    assert set(copy) == set(OWNED) - {"cover_title", "plan_note", "about_headline"}
+    assert set(copy) == set(OWNED) - {"cover_tagline", "plan_note", "about_headline"}
     (message,) = warnings(caplog)
-    assert all(slot_id in message for slot_id in ("cover_title", "plan_note", "about_headline"))
+    assert all(slot_id in message for slot_id in ("cover_tagline", "plan_note", "about_headline"))
     assert "Zorbaville" in message and "empty" in message
 
 
 def test_the_reason_in_the_warning_is_the_one_from_the_second_attempt(caplog):
-    play({**GOOD, "cover_title": TOO_LONG}, {**GOOD, "cover_title": "Heights in Zorbaville"})
+    play({**GOOD, "cover_tagline": TOO_LONG}, {**GOOD, "cover_tagline": "Heights in Zorbaville"})
     (message,) = warnings(caplog)
-    assert "Zorbaville" in message and "41 characters" not in message
+    assert "Zorbaville" in message and "91 characters" not in message
 
 
 def test_no_warning_when_every_slot_passes(caplog):
@@ -247,10 +247,10 @@ def test_a_client_error_on_the_first_call_gives_no_copy_and_one_warning_without_
 
 
 def test_a_client_error_on_the_second_call_keeps_the_slots_that_passed_and_one_warning_names_the_rest(caplog):
-    copy, llm = play({**GOOD, "cover_title": TOO_LONG}, LLMRateLimited("rate limit"))
-    assert copy == {k: v for k, v in GOOD.items() if k != "cover_title"}
+    copy, llm = play({**GOOD, "cover_tagline": TOO_LONG}, LLMRateLimited("rate limit"))
+    assert copy == {k: v for k, v in GOOD.items() if k != "cover_tagline"}
     (message,) = warnings(caplog)
-    assert "cover_title" in message and "41 characters" in message and "rate limit" in message
+    assert "cover_tagline" in message and "91 characters" in message and "rate limit" in message
     assert "plan_note" not in message  # it passed
 
 
@@ -277,7 +277,7 @@ def test_without_qa_issues_the_payload_has_no_qa_issues_key():
 
 
 def test_the_qa_issues_are_sent_again_with_the_second_call():
-    _, llm = play({**GOOD, "cover_title": TOO_LONG}, GOOD, qa_issues=[qa_issue("copywriter", note="tone")])
+    _, llm = play({**GOOD, "cover_tagline": TOO_LONG}, GOOD, qa_issues=[qa_issue("copywriter", note="tone")])
     assert llm.calls[1][1]["qa_issues"] == llm.calls[0][1]["qa_issues"]
 
 
@@ -355,8 +355,8 @@ def test_the_returned_copy_has_plain_spaces_and_hyphens_whatever_the_model_wrote
 
 
 def test_the_budget_is_checked_on_the_normalised_text_which_is_the_text_that_is_returned():
-    copy, _ = play({**GOOD, "cover_title": "Aurelia\u202fHeights"})
-    assert copy["cover_title"] == "Aurelia Heights" and len(copy["cover_title"]) <= OWNED["cover_title"]
+    copy, _ = play({**GOOD, "cover_tagline": "Aurelia\u202fHeights"})
+    assert copy["cover_tagline"] == "Aurelia Heights" and len(copy["cover_tagline"]) <= OWNED["cover_tagline"]
 
 
 def test_the_prompt_says_each_highlight_line_states_a_fact_from_the_project_not_a_picture():
@@ -368,7 +368,7 @@ def test_the_prompt_says_each_highlight_line_states_a_fact_from_the_project_not_
 
 # --- a reply that is not valid JSON is asked for once more, as the Brief agent does ----------------------------------------
 
-BAD = LLMBadReply("the model's reply is not valid JSON: '{\"cover_title\": '")
+BAD = LLMBadReply("the model's reply is not valid JSON: '{\"cover_tagline\": '")
 
 
 def test_a_bad_reply_is_asked_again_once_with_the_error_and_the_second_reply_is_used(caplog):
@@ -391,20 +391,20 @@ def test_a_second_bad_reply_falls_back_like_any_other_error_with_one_warning(cap
 
 
 def test_a_bad_reply_to_the_second_attempt_is_also_asked_again_and_keeps_the_problems_list():
-    copy, llm = play({**GOOD, "cover_title": TOO_LONG}, BAD, GOOD)
+    copy, llm = play({**GOOD, "cover_tagline": TOO_LONG}, BAD, GOOD)
     assert len(llm.calls) == 3
     assert copy == GOOD
     second, third = llm.calls[1][1], llm.calls[2][1]
     assert third["problems"] == second["problems"] and "previous_error" in third
-    assert [s["id"] for s in third["slots"]] == ["cover_title"]
+    assert [s["id"] for s in third["slots"]] == ["cover_tagline"]
 
 
 def test_two_bad_replies_to_the_second_attempt_keep_what_passed_and_leave_the_rest_out(caplog):
-    copy, llm = play({**GOOD, "cover_title": TOO_LONG}, BAD, LLMBadReply("again"))
+    copy, llm = play({**GOOD, "cover_tagline": TOO_LONG}, BAD, LLMBadReply("again"))
     assert len(llm.calls) == 3
-    assert copy == {k: v for k, v in GOOD.items() if k != "cover_title"}
+    assert copy == {k: v for k, v in GOOD.items() if k != "cover_tagline"}
     (message,) = warnings(caplog)
-    assert "cover_title" in message and "41 characters" in message and "again" in message
+    assert "cover_tagline" in message and "91 characters" in message and "again" in message
 
 
 def test_only_a_bad_reply_is_asked_again_a_rate_limit_or_http_error_is_not():

@@ -151,7 +151,7 @@ def test_when_the_model_cannot_be_used_the_run_still_reaches_review_with_placeho
     run.start(sample_state(briefed=False))
     assert run.paused_at == ("human_review",)
     fills = {sid: fill for page in run.state.spec.pages for sid, fill in page.slots.items()}
-    assert fills["cover_title"].text == "[copy needed: cover_title]"
+    assert fills["cover_tagline"].text == "[copy needed: cover_tagline]"
     assert fills["disclaimer"].text == run.state.brand_kit.disclaimer  # verbatim slots are unaffected
     assert len([r for r in caplog.records if r.levelno >= logging.WARNING]) == 1
 

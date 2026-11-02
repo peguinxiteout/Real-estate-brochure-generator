@@ -84,7 +84,6 @@ def qa_issue(route_to, note="problem"):
 
 # Copy that passes every check for the sample project.
 GOOD_COPY = {
-    "cover_title": "Aurelia Heights",
     "cover_tagline": "Light, air and green space, a short walk from the metro.",
     "overview_headline": "Homes designed around light and open space",
     "overview_intro": "Aurelia Heights is a pair of residential towers in Pune with 2 and 3 BHK homes. The towers stand around a "
