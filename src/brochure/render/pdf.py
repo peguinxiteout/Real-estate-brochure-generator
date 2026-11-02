@@ -2,23 +2,30 @@
 from pathlib import Path
 
 from brochure.print_config import PRINT, PrintConfig
-from brochure.render.geometry import Box, check_page_count
+from brochure.render.geometry import Box, check_page_count, page_geometry_pt
 
 
 def render_blank_pdf(page_count: int, path: Path, config: PrintConfig = PRINT) -> Path:
     check_page_count(page_count, config)
     from weasyprint import HTML  # imported here so this module, and the page count check, work without Pango
 
+    geometry = page_geometry_pt(config)
     path = Path(path)
-    HTML(string=_blank_html(page_count, config)).write_pdf(path)
+    HTML(string=_blank_html(page_count, config)).write_pdf(
+        path, finisher=lambda _document, pdf: set_bleed_boxes(pdf, geometry.bleed)
+    )
     return path
 
 
 def _blank_html(page_count: int, config: PrintConfig) -> str:
     sheets = "\n".join(f'<section class="sheet"><p class="number">{n}</p></section>' for n in range(1, page_count + 1))
+    outside_trim_mm = config.bleed_mm + config.slug_beyond_bleed_mm
     return f"""<!doctype html>
 <html><head><meta charset="utf-8"><style>
-@page {{ size: {config.page_width_mm}mm {config.page_height_mm}mm; margin: 0; }}
+@page {{
+  size: {config.page_width_mm}mm {config.page_height_mm}mm; margin: 0;
+  bleed: {outside_trim_mm}mm; marks: none;
+}}
 html, body {{ margin: 0; }}
 .sheet {{ position: relative; width: {config.page_width_mm}mm; height: {config.page_height_mm}mm; break-after: page; }}
 .sheet:last-child {{ break-after: auto; }}
