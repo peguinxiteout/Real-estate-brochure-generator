@@ -49,4 +49,4 @@ class PageGeometry:
 def page_geometry_mm(config: PrintConfig = PRINT) -> PageGeometry:
     trim = Box(0, 0, config.page_width_mm, config.page_height_mm)
     zero = Box(0, 0, 0, 0)
-    return PageGeometry(media=zero, bleed=zero, trim=trim)
+    return PageGeometry(media=zero, bleed=trim.grown(config.bleed_mm), trim=trim)

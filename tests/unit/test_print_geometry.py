@@ -15,3 +15,12 @@ def test_mm_to_pt_uses_72_points_per_25_4_mm():
 def test_trim_box_is_the_a4_page_with_its_origin_at_the_lower_left():
     assert page_geometry_mm().trim == Box(0, 0, PRINT.page_width_mm, PRINT.page_height_mm)
     assert (PRINT.page_width_mm, PRINT.page_height_mm) == (210, 297)
+
+
+def test_bleed_box_is_exactly_3_mm_outside_the_trim_on_every_edge():
+    g = page_geometry_mm()
+    assert PRINT.bleed_mm == 3
+    assert g.trim.left - g.bleed.left == 3
+    assert g.trim.bottom - g.bleed.bottom == 3
+    assert g.bleed.right - g.trim.right == 3
+    assert g.bleed.top - g.trim.top == 3
