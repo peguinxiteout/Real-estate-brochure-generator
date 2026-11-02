@@ -54,16 +54,15 @@ commit an API key: keys live in the environment (`.env` is git-ignored; `.env.ex
 - Pure logic gets fast unit tests with no I/O beyond temp dirs. Tests that need WeasyPrint or Ghostscript go in `tests/integration/` with `@pytest.mark.integration`.
 - A bug gets a failing test that reproduces it before the fix.
 - Never delete or weaken a test to get green without saying so in the commit message or PR.
-- Commit after each green step, with a plain message describing the change.
+- Write the tests first and work in red-green-refactor cycles, but commit only when the feature is ready: normally one commit per feature, plus a separate commit for fixes after review. Never commit unless the test run you just did is green. Use a plain message describing the change.
 
 ## Branching and merging
 
 - `master` is always green. Code is never committed to it directly.
 - Code changes (anything touching `src/`, `tests/`, `templates/`, `contracts/`, `tools/` or the CI workflow) go on a branch: one branch per feature or bug, `feature/<short-name>` or `fix/<short-name>`, cut from the latest `master`.
 - Docs-only changes (README, CHANGELOG, CONTRIBUTING wording) may be committed straight to `master` after the tests pass locally. Pull first and push right after.
-- Commit after each green TDD cycle, as described above.
 - Before merging: merge `master` into your branch, run the full test suite, and make sure it passes.
-- Merge into `master` with a merge commit (`git merge --no-ff`), not a squash, so the per-cycle history is kept. Delete the branch after merging.
+- Merge into `master` with a merge commit (`git merge --no-ff`), not a squash, so the feature commit and any review-fix commits are kept. Delete the branch after merging.
 - A change to the shared contracts needs review by the other developer before it merges. The shared contracts are `src/brochure/contracts/`, `contracts/json/` and `templates/*/slots.json`. If you change a model, regenerate `contracts/json/` with `tools/export_schemas.py` in the same branch.
 - Each feature branch adds its own entry at the top of `docs/CHANGELOG.md`.
 

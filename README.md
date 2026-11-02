@@ -622,8 +622,9 @@ three failing images (their slots stay unfilled, each with an error) and places 
 
 Full rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-- Test-driven: no production code without a failing test first; the red must fail on an assertion; commit after
-  each green cycle.
+- Test-driven: no production code without a failing test first; the red must fail on an assertion; work in red-green-refactor
+  cycles, but commit only when the feature is ready (normally one commit per feature, plus a separate commit for fixes after
+  review), and never unless the test run you just did is green.
 - Code changes go on a `feature/<name>` or `fix/<name>` branch, cut from the latest `master`.
 - Docs-only changes (README, CHANGELOG, CONTRIBUTING wording) may go straight to `master` after the tests pass.
 - Merge with `git merge --no-ff` after merging `master` into the branch and running the full suite.
