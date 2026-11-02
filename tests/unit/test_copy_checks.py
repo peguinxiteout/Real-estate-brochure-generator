@@ -355,3 +355,25 @@ def test_a_full_stop_inside_a_sentence_is_not_a_boundary():
 
 def test_a_text_that_already_passes_is_returned_unchanged():
     assert trim(f"{S1} {S2}", 500) == f"{S1} {S2}"
+
+
+from brochure.agents.copy_checks import fails_only_on_length  # noqa: E402
+
+
+def test_a_text_that_is_only_too_long_fails_only_on_length():
+    assert fails_only_on_length(f"{S1} {S2}", 50, KNOWN)
+
+
+@pytest.mark.parametrize("text", [
+    f"{S1} It stands near Zorbaville and is long enough to go over the budget.",   # a name as well
+    f"{S1} The price is a surprise and the text is long enough to go over.",         # money as well
+    f"{S1} There are 99 more homes and this makes the text go over the budget.",     # a number as well
+])
+def test_a_text_that_is_too_long_and_also_wrong_in_content_does_not_fail_only_on_length(text):
+    assert len(text) > 60
+    assert not fails_only_on_length(text, 60, KNOWN)
+
+
+def test_a_text_within_the_budget_or_an_empty_one_does_not_fail_on_length():
+    assert not fails_only_on_length(S1, 500, KNOWN)
+    assert not fails_only_on_length("  ", 10, KNOWN)

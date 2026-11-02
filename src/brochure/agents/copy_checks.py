@@ -146,14 +146,14 @@ def trim_to_budget(text: str, char_budget: int, known: Known) -> str | None:
     return None
 
 
-def problems(text: str, char_budget: int, known: Known) -> list[str]:
-    """Why this text cannot be used for a slot with this budget; empty when it can."""
-    if not text.strip():
-        return ["the text is empty"]
+def fails_only_on_length(text: str, char_budget: int, known: Known) -> bool:
+    """True when the text is over the budget and nothing else is wrong with it: it can be shortened instead of rewritten."""
+    return bool(text.strip()) and len(text) > char_budget and not _content_problems(text, known)
+
+
+def _content_problems(text: str, known: Known) -> list[str]:
+    """Everything wrong with the text apart from its length."""
     reasons = []
-    if len(text) > char_budget:
-        target = int(char_budget * TARGET_SHARE_OF_BUDGET)  # a model cannot count characters: give it a length to aim for
-        reasons.append(f"{len(text)} characters, the limit is {char_budget}; shorten it to about {target} characters")
     if unknown := _unknown_numbers(text, known):
         reasons.append(f"not in the project facts: number {', '.join(unknown)}")
     if unknown := _unknown_names(text, known):
@@ -163,3 +163,14 @@ def problems(text: str, char_budget: int, known: Known) -> list[str]:
     if banned := _listed_in(text, "copy_banned_phrases.txt"):
         reasons.append(f"superlative or promise: {', '.join(banned)}")
     return reasons
+
+
+def problems(text: str, char_budget: int, known: Known) -> list[str]:
+    """Why this text cannot be used for a slot with this budget; empty when it can."""
+    if not text.strip():
+        return ["the text is empty"]
+    reasons = []
+    if len(text) > char_budget:
+        target = int(char_budget * TARGET_SHARE_OF_BUDGET)  # a model cannot count characters: give it a length to aim for
+        reasons.append(f"{len(text)} characters, the limit is {char_budget}; shorten it to about {target} characters")
+    return reasons + _content_problems(text, known)
