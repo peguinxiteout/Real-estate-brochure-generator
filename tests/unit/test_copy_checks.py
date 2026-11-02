@@ -218,3 +218,9 @@ def test_a_title_cased_headline_is_rejected_and_the_reason_says_to_use_lower_cas
 def test_a_thousands_group_split_by_a_non_breaking_or_thin_space_is_one_number(separator):
     assert check(f"Homes of 1{separator}090 sq ft") == []
     assert len(check(f"Homes of 1{separator}091 sq ft")) == 1
+
+
+def test_the_over_budget_reason_gives_a_target_below_the_limit_because_a_model_cannot_count_characters():
+    (reason,) = check("a" * 630, budget=600)
+    assert "630 characters, the limit is 600" in reason
+    assert "510" in reason  # 85% of the budget: the length to aim for

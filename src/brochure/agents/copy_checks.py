@@ -6,6 +6,7 @@ from pathlib import Path
 from brochure.contracts.project import ProjectFacts
 
 DATA_DIR = Path(__file__).parent / "data"
+TARGET_SHARE_OF_BUDGET = 0.85
 
 NUMBER_WORDS = {
     word: value
@@ -117,7 +118,8 @@ def problems(text: str, char_budget: int, known: Known) -> list[str]:
         return ["the text is empty"]
     reasons = []
     if len(text) > char_budget:
-        reasons.append(f"{len(text)} characters, the limit is {char_budget}")
+        target = int(char_budget * TARGET_SHARE_OF_BUDGET)  # a model cannot count characters: give it a length to aim for
+        reasons.append(f"{len(text)} characters, the limit is {char_budget}; shorten it to about {target} characters")
     if unknown := _unknown_numbers(text, known):
         reasons.append(f"not in the project facts: number {', '.join(unknown)}")
     if unknown := _unknown_names(text, known):

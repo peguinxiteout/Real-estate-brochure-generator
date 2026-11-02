@@ -307,3 +307,7 @@ def test_the_prompt_asks_for_sentence_case_headlines_because_the_name_check_reje
     prompt = PROMPT_FILE.read_text(encoding="utf-8")
     assert "sentence case" in prompt
     assert "Title Case" in prompt  # shown as the thing not to do
+
+
+def test_the_prompt_asks_for_headroom_under_each_budget():
+    assert "85%" in PROMPT_FILE.read_text(encoding="utf-8")
