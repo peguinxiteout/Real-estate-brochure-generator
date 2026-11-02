@@ -118,3 +118,10 @@ def page_geometry_pt(config: PrintConfig = PRINT) -> PageGeometry:
         crop_marks=tuple(m.to_pt() for m in mm.crop_marks),
         crop_mark_weight_pt=mm.crop_mark_weight_pt,
     )
+
+
+def check_page_count(page_count: int, config: PrintConfig = PRINT) -> None:
+    """Raise ValueError unless page_count is a positive multiple of config.page_count_multiple (4)."""
+    multiple = config.page_count_multiple
+    if page_count <= 0 or page_count % multiple:
+        raise ValueError(f"page count must be a positive multiple of {multiple}, got {page_count}")

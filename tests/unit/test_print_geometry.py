@@ -3,7 +3,7 @@ from dataclasses import replace
 import pytest
 
 from brochure.print_config import PRINT
-from brochure.render.geometry import Box, mm_to_pt, page_geometry_mm, page_geometry_pt
+from brochure.render.geometry import Box, check_page_count, mm_to_pt, page_geometry_mm, page_geometry_pt
 
 TOL_PT = 0.01
 
@@ -124,3 +124,14 @@ def test_crop_marks_in_points_start_14_17_pt_outside_the_trim_and_are_14_17_pt_l
         assert distance_outside_trim(g.trim, m.x0, m.y0) == pytest.approx(14.1732, abs=TOL_PT), m
         assert m.length == pytest.approx(14.1732, abs=TOL_PT), m
     assert g.crop_mark_weight_pt == 0.25
+
+
+@pytest.mark.parametrize("page_count", [4, 8, 12, 16])
+def test_a_positive_multiple_of_4_pages_is_accepted(page_count):
+    check_page_count(page_count)
+
+
+@pytest.mark.parametrize("page_count", [0, -4, 1, 6, 10])
+def test_any_other_page_count_is_refused_with_a_clear_message(page_count):
+    with pytest.raises(ValueError, match=rf"page count must be a positive multiple of 4, got {page_count}"):
+        check_page_count(page_count)
