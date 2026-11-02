@@ -94,3 +94,12 @@ GOOD_COPY = {
     "plan_note": "Areas shown are carpet areas. Furniture in the plans is indicative only.",
     "about_headline": "About Kestrel Urbanscapes",
 }
+
+
+def _stub_renderer(state, llm):
+    from brochure.pipeline import stub_agents
+
+    return stub_agents().renderer(state, llm)
+
+
+STUB_RENDERER = _stub_renderer  # for graph tests of real_agents() that must not need WeasyPrint

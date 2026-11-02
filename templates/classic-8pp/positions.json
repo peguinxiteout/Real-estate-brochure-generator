@@ -1,0 +1,51 @@
+{
+  "template_id": "classic-8pp",
+  "positions": [
+    {"slot": "hero", "x_mm": 0, "y_mm": 0},
+    {"slot": "cover_logo", "x_mm": 15, "y_mm": 15},
+    {"slot": "cover_title", "x_mm": 15, "y_mm": 222, "role": "title"},
+    {"slot": "cover_tagline", "x_mm": 15, "y_mm": 252, "role": "subheading"},
+    {"slot": "cover_rera_line", "x_mm": 15, "y_mm": 276, "role": "small-print"},
+
+    {"slot": "overview_img", "x_mm": 0, "y_mm": 0},
+    {"slot": "overview_headline", "x_mm": 15, "y_mm": 132, "role": "heading"},
+    {"slot": "overview_intro", "x_mm": 15, "y_mm": 156, "role": "body"},
+    {"slot": "overview_highlights", "x_mm": 15, "y_mm": 232, "role": "list"},
+
+    {"slot": "location_map", "x_mm": 15, "y_mm": 15},
+    {"slot": "location_address", "x_mm": 15, "y_mm": 141, "role": "subheading"},
+    {"slot": "location_landmarks", "x_mm": 15, "y_mm": 159, "role": "list"},
+    {"slot": "location_img", "x_mm": 15, "y_mm": 215},
+
+    {"slot": "amenity_img_a", "x_mm": 15, "y_mm": 15},
+    {"slot": "amenity_img_b", "x_mm": 15, "y_mm": 111},
+    {"slot": "amenity_img_c", "x_mm": 107, "y_mm": 111},
+    {"slot": "amenities_blurb", "x_mm": 15, "y_mm": 181, "role": "body"},
+    {"slot": "amenities_list", "x_mm": 15, "y_mm": 217, "role": "list"},
+
+    {"slot": "plan_img_a", "x_mm": 15, "y_mm": 25},
+    {"slot": "plan_img_b", "x_mm": 107, "y_mm": 25},
+    {"slot": "config_table", "x_mm": 15, "y_mm": 125, "role": "list"},
+    {"slot": "plan_note", "x_mm": 15, "y_mm": 181, "role": "small-print"},
+
+    {"slot": "spec_banner", "x_mm": 0, "y_mm": 0},
+    {"slot": "spec_img", "x_mm": 15, "y_mm": 92},
+    {"slot": "specs_list", "x_mm": 107, "y_mm": 92, "role": "list"},
+
+    {"slot": "about_headline", "x_mm": 15, "y_mm": 25, "role": "heading"},
+    {"slot": "about_text", "x_mm": 15, "y_mm": 49, "role": "body"},
+    {"slot": "about_img", "x_mm": 15, "y_mm": 117},
+
+    {"slot": "back_logo", "x_mm": 15, "y_mm": 25},
+    {"slot": "contact_block", "x_mm": 15, "y_mm": 55, "role": "body"},
+    {"slot": "rera_qr", "x_mm": 170, "y_mm": 55},
+    {"slot": "rera_number", "x_mm": 15, "y_mm": 92, "role": "body"},
+    {"slot": "disclaimer", "x_mm": 15, "y_mm": 240, "role": "small-print"}
+  ],
+  "overlays": [
+    {"slot": "cover_logo", "over": "hero"},
+    {"slot": "cover_title", "over": "hero"},
+    {"slot": "cover_tagline", "over": "hero"},
+    {"slot": "cover_rera_line", "over": "hero"}
+  ]
+}

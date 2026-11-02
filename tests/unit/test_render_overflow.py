@@ -1,0 +1,60 @@
+"""Text overflow, measured from the start and end marks of each text slot (WeasyPrint's public Page.anchors), and the
+renderer's checks that run before WeasyPrint is imported."""
+import pytest
+
+from brochure.contracts.spec import BrochureSpec, PageSpec, SlotFill
+from brochure.pipeline.stubs import load_sample_data
+from brochure.render.html import PX_PER_MM, text_overflow_issues
+from brochure.render.pdf import render_brochure
+from tests.support import sample_state
+
+TEMPLATE = load_sample_data().template
+
+
+def anchors(slot_id: str, height_mm: float, top_px: float = 100.0) -> dict:
+    """The two marks of one slot, as Page.anchors gives them: (x, y, ...) in CSS px."""
+    return {f"start-{slot_id}": (50.0, top_px, 0, 0), f"end-{slot_id}": (50.0, top_px + height_mm * PX_PER_MM, 0, 0)}
+
+
+def spec_with(page2: dict[str, SlotFill]) -> BrochureSpec:
+    pages = [PageSpec(layout_id=f"p{n}", slots=page2 if n == 2 else {}) for n in range(1, 9)]
+    return BrochureSpec(template_id="classic-8pp", pages=pages)
+
+
+def test_text_within_its_slot_height_is_not_reported():
+    spec = spec_with({"overview_intro": SlotFill(text="x")})
+    pages = [{} for _ in range(8)]
+    pages[1] = anchors("overview_intro", 70)  # the slot is 70 mm high
+    assert text_overflow_issues(pages, spec, TEMPLATE) == []
+
+
+def test_text_taller_than_its_slot_is_a_warning_for_the_copywriter_on_its_page():
+    spec = spec_with({"overview_intro": SlotFill(text="x"), "overview_headline": SlotFill(text="y")})
+    pages = [{} for _ in range(8)]
+    pages[1] = {**anchors("overview_intro", 82.4), **anchors("overview_headline", 9, top_px=600)}
+    issues = text_overflow_issues(pages, spec, TEMPLATE)
+    assert len(issues) == 1
+    issue = issues[0]
+    assert (issue.check, issue.page, issue.severity, issue.route_to) == ("render.text_overflow", 2, "warning", "copywriter")
+    assert "overview_intro" in issue.note and "82 mm" in issue.note and "70 mm" in issue.note
+
+
+def test_a_fraction_of_a_millimetre_over_is_rounding_not_overflow():
+    spec = spec_with({"overview_intro": SlotFill(text="x")})
+    pages = [{} for _ in range(8)]
+    pages[1] = anchors("overview_intro", 70.3)
+    assert text_overflow_issues(pages, spec, TEMPLATE) == []
+
+
+def test_a_text_slot_without_its_marks_is_an_error_in_the_renderer():
+    spec = spec_with({"overview_intro": SlotFill(text="x")})
+    with pytest.raises(RuntimeError, match="overview_intro"):
+        text_overflow_issues([{} for _ in range(8)], spec, TEMPLATE)
+
+
+def test_render_brochure_refuses_missing_image_files_before_rendering(tmp_path):
+    state = sample_state()
+    spec = spec_with({"overview_img": SlotFill(image_path="nowhere.jpg")})
+    with pytest.raises(FileNotFoundError, match="nowhere.jpg"):
+        render_brochure(spec, state.brand_kit, [], tmp_path, tmp_path / "out")
+    assert not (tmp_path / "out").exists()

@@ -20,27 +20,29 @@ Built (see [docs/CHANGELOG.md](docs/CHANGELOG.md) for the history):
 
 - Contracts: Pydantic models for everything the pipeline passes around, plus exported JSON Schemas (section 6).
 - Print rules: print config and DPI maths (section 7).
-- Print geometry: page boxes (trim, 3 mm bleed, 10 mm slug), crop marks, the page count rule, and a blank proof PDF with those boxes and marks, made with WeasyPrint (section 7, "Print geometry"). Not wired into the pipeline yet.
+- Print geometry: page boxes (trim, 3 mm bleed, 10 mm slug), crop marks, the page count rule, and a blank proof PDF with those boxes and marks, made with WeasyPrint (section 7, "Print geometry"). The renderer uses the same page rule, marks and BleedBox finisher.
+- The `classic-8pp` HTML/CSS template and a real renderer: BrochureSpec + brand kit + image tags to an 8-page print PDF and one PNG per page (section 8, "Template and renderer"). `tools/render_sample.py` renders the sample through the graph.
+- Bundled brand fonts: Inter (headings) and Open Sans (body), static TTFs with their OFL licences (section 8, "Fonts").
 - Slots format, loader and the `classic-8pp` template (section 8).
 - LLM interface with a `FakeLLM` for tests, and a real client for any OpenAI-compatible endpoint (Groq by default) (section 9).
 - The Brief and Copywriter agents are real, using the LLM (section 3): Brief fills empty form fields with facts the prompt states; Copywriter writes the free-text slots, checked in code.
 - The Layout step's image assignment is real, in code with no LLM (section 3): images go to slots by kind, resolution against the DPI rule, subject and shape, and every problem is a warning for the reviewer. The other steps are still stubs.
 - The pipeline graph (LangGraph), with pause and resume for missing fields and for human review (section 3). `stub_agents()` runs it with no LLM; `real_agents()` swaps in the real Brief and Copywriter agents, which use the client that `build_graph` is given, and the rule-based layout.
 - A fictional sample project, "Aurelia Heights" (section 10).
-- `brochure doctor`: checks Python, WeasyPrint, Ghostscript and bundled fonts. It is the only CLI command.
+- `brochure doctor`: checks Python, WeasyPrint, Ghostscript and the bundled font files. It is the only CLI command, and in WSL every check passes.
 - CI on GitHub Actions: runs the unit tests on pushes to `feature/**` and `fix/**` and on pull requests into `master`.
 
 Not built:
 
 - Real agents other than Brief and Copywriter. Vision and the QA critic are stubs; Layout does not yet choose between page layouts or apply chat edits.
 - The image tools. They are not in the graph yet.
-- The renderer (BrochureSpec to HTML to PDF, CMYK). The page boxes and crop marks are settled (the blank proof), but the graph's renderer is still a stub that returns fake file paths and creates no files.
+- CMYK conversion. The PDF is RGB; the Ghostscript CMYK step comes later.
 - Export. The stub does nothing.
 - An API and a frontend.
 
 ## 3. How it will work
 
-This is the design the contracts were written for. The graph that connects the steps is built and runs on stub agents (see "The graph on stub agents" below). The real agents, the image tools and the renderer are not built, and step 3 is not in the graph yet.
+This is the design the contracts were written for. The graph that connects the steps is built and runs on stub agents (see "The graph on stub agents" below). Vision, the image tools, the QA critic and export are not built, and step 3 is not in the graph yet.
 
 ```mermaid
 flowchart TD
@@ -67,7 +69,7 @@ flowchart TD
 | 3. Image tools | Plain code, not an agent. For each image: crops it to its slot's aspect ratio around the focal point, fixes exposure, runs the DPI check, and upscales by at most 2x. Low-resolution images are flagged and limited to small slots. Planned, not built. | Not built, not in the graph. |
 | 4. Copywriter | Writes the text for each text slot, within its `char_budget`. | Real. `real_agents()` runs the Copywriter agent (one LLM call, a second only for slots that fail a check) for the 7 free-text slots; code fills the other 11 text slots word for word. `stub_agents()` uses sample text. |
 | 5. Layout agent | Chooses which image and text goes in which slot and produces the `BrochureSpec`. Also applies the human's chat edits. | Image assignment is real: `real_agents()` places images by rules in code (no LLM) and warns about every problem. `stub_agents()` uses the manifest's intended slots. Chat edits are not applied yet. |
-| 6. Renderer | Fills the HTML/CSS template from the spec and produces the PDF and one PNG per page. | Stub: fake paths, no files. |
+| 6. Renderer | Fills the HTML/CSS template from the spec and produces the PDF and one PNG per page. | Real in `real_agents()`: WeasyPrint and Ghostscript, into `out/<thread id>/` (section 8). `stub_agents()` keeps the stub (fake paths, no files), so CI needs no Pango. |
 | 7. QA critic | Looks at the pages and the spec and returns `QAIssue`s. Each issue says who should fix it (`route_to`). The loop stops after 3 rounds. | Stub: no issues unless scripted. The routing and the 3-round limit are real. |
 | 8. Human review | A person approves, or asks for changes in chat. | Real: pauses, resumes with `approved` or `changes_requested`. No chat text yet. |
 | 9. Export | Writes the approved PDF. | Stub: does nothing. |
@@ -289,7 +291,10 @@ src/brochure/
   doctor.py                   environment checks and fix hints
   print_config.py             A4 size, bleed, slug, crop marks, page count multiple, DPI thresholds
   dpi.py                      min_pixels, effective_dpi, classify_dpi
-  render/                     geometry.py (page boxes, crop marks, page count, no WeasyPrint); pdf.py (blank proof PDF)
+  fonts.py                    the bundled font faces (family, weight, style, file) and the missing-file check
+  render/                     geometry.py (page boxes, crop marks, page count, no WeasyPrint); positions.py (slot
+                              positions and their rules); html.py (spec to HTML, focal-point crop, overflow check);
+                              qr.py (vector QR); pdf.py (brochure PDF and page PNGs, blank proof PDF)
   slots.py                    load slots.json, compute min_px
   layout.py                   layout rules, image eligibility and scoring, image assignment and its warnings
   contracts/                  Pydantic models and the schema export
@@ -297,11 +302,14 @@ src/brochure/
   verbatim.py                 the text slots code fills word for word (RERA, contact, lists, about text, disclaimer)
   agents/                     real agents (Brief, Copywriter), their prompt files, the copy checks and their data files
   pipeline/                   LangGraph graph, stub agents, real_agents, checkpointers
-templates/classic-8pp/        slots.json and layout_rules.json for the 8-page template (no HTML/CSS yet)
+assets/fonts/                 Inter/ and OpenSans/: static TTFs and each family's OFL.txt
+templates/classic-8pp/        slots.json, layout_rules.json, positions.json, brochure.html.j2, brochure.css
+sample/pages/                 the sample's 8 page PNGs at 100 DPI, for QA critic work (committed)
+out/                          renderer output (git-ignored)
 tests/unit/                   fast tests, no network
 tests/integration/            tests that need WeasyPrint or Ghostscript
 tests/llm/                    tests that call the real model (marker `llm`, skipped without a key)
-tools/                        export_schemas.py, make_sample_images.py, make_blank_pdf.py
+tools/                        export_schemas.py, make_sample_images.py, make_blank_pdf.py, render_sample.py
 README.md                     this file
 CONTRIBUTING.md               setup, TDD rules, branching rules
 pyproject.toml                dependencies, pytest markers
@@ -318,9 +326,8 @@ Check the environment:
 ~/.venvs/brochure/bin/brochure doctor
 ```
 
-The doctor prints one line per check and exits with 1 if any check fails. Python, WeasyPrint and Ghostscript are
-checked for real. The bundled-fonts check currently fails because `assets/fonts` is not in the repo yet (see
-section 13). Its "git restore" hint does not apply until the fonts are committed.
+The doctor prints one line per check and exits with 1 if any check fails. In WSL all four pass. The fonts check looks
+for each bundled font file and each family's `OFL.txt` under `assets/fonts` and names any that are missing.
 
 Run the tests:
 
@@ -449,12 +456,13 @@ mark pixels):
 ~/.venvs/brochure/bin/python -m pytest tests/integration/test_blank_pdf.py -rs
 ```
 
-The proof's page number uses a system sans-serif font: the brand fonts are not committed yet. The proof is RGB; CMYK
-conversion comes with the renderer.
+The proof's page number uses a system sans-serif font (the proof is about geometry). The proof is RGB; CMYK
+conversion is not built yet.
 
 ## 8. Templates and slots
 
-A template lives in `templates/<template_id>/`. For now it is only `slots.json`; the HTML and CSS do not exist yet.
+A template lives in `templates/<template_id>/`: `slots.json` (the shared contract), `layout_rules.json` (section 3),
+`positions.json`, `brochure.html.j2` and `brochure.css` (below, "Template and renderer").
 Each slot has `id`, `type` (`image`, `text` or `qr`), `page`, `width_mm`, `height_mm`, `bleed_edges` (any of `top`,
 `right`, `bottom`, `left`; empty when the slot is inside the trim), `char_budget` (text slots only) and an optional
 `comment`. Sizes are the trim-side size; the loader adds the bleed from the config.
@@ -489,6 +497,93 @@ contains `min_px` is rejected.
 
 The QR slot `rera_qr` is 25 x 25 mm. That size is provisional: compliance has not given a minimum QR size for RERA,
 and the slot's comment says so.
+
+### Template and renderer
+
+`render_brochure(spec, brand_kit, image_tags, image_dir, out_dir)` in `src/brochure/render/pdf.py` returns
+`(pdf_path, page_image_paths)`. It writes `out_dir/brochure.pdf` with WeasyPrint (imported inside the function, so the
+unit tests run without Pango), with the page rule, crop marks and BleedBox finisher of the blank proof (section 7), and
+`out_dir/page-<n>.png`, one per page in page order, rendered by Ghostscript (found as `brochure doctor` finds it) at
+100 DPI over the whole MediaBox, crop marks included. Images are read from `image_dir` + each image's path; a missing
+file stops the render before WeasyPrint runs. Nothing is written to the image files: cropping is CSS only.
+
+**Positions** (`templates/classic-8pp/positions.json`, owned by the template, not a shared contract). For every slot:
+`x_mm`, `y_mm` of the top-left corner of its trim-side box (its `slots.json` size), from the trim's top-left corner,
+y downwards; and for text slots a `role` (`title`, `heading`, `subheading`, `body`, `list`, `small-print`). Width and
+height always come from `slots.json`. `overlays` lists the slots drawn on top of another by design. `position_problems()`
+(`src/brochure/render/positions.py`) checks, in unit tests and every time a brochure is rendered:
+
+- every slot has exactly one position and every position names a slot; text slots have a known role, others none;
+- bleed: on each edge in `bleed_edges` the trim-side box lies exactly on the trim edge, so the drawn box (grown by
+  `bleed_mm` on that edge only, the size `slots.py` measures) ends exactly 3 mm past the trim; on every other edge it
+  lies strictly inside the trim, never touching it. A slot with no `bleed_edges` therefore lies inside the trim;
+- text and QR slots lie inside the safe area: the trim inset by `safe_margin_mm` (10 mm, provisional, in
+  `print_config.py`);
+- no two slots on a page overlap (touching is allowed) except the pairs in `overlays`, and only a text, QR or logo
+  slot may be listed on a non-logo image slot. A listed pair must overlap. In `classic-8pp` the four cover slots
+  (`cover_logo`, `cover_title`, `cover_tagline`, `cover_rera_line`) lie on the hero. The logo is listed although it is
+  an image slot: it sits on the photo by design.
+
+**Design** (`brochure.html.j2` + `brochure.css`; option "clean and plain"). Each slot is an absolutely positioned box
+in mm. Headings are Inter SemiBold (title Inter Bold, 30 pt), body Open Sans 10 pt with 1.5 line spacing, small print
+7.5 pt. The brand kit's `primary` colour (navy `#1F3A5F` in the sample) is used for the cover band behind the title,
+a thin band bleeding off the top of pages 3, 4, 5, 7 and 8, headings, list labels and the configuration lines; the
+`accent` colour (gold `#C8A24A`) for the line on top of the cover band, the cover tagline, the short rule under each
+heading, the list markers and the rule above the disclaimer. If a kit has no colours named `primary` and `accent`, the
+first and second colours are used. Brand colours and font families reach the CSS as variables.
+
+- Fonts: `@font-face` rules point at the files in `assets/fonts` only. A brand font that is not bundled is refused
+  (`ValueError`); there is no fallback to a system or web font.
+- Images fill their slot (`object-fit: cover`). `object-position` is computed from the tag's `focal_point` so the
+  crop is centred on it, as far as the image's edges allow (a plain `x% y%` would not centre it).
+- Renders (`kind` `render`): an "Artist's impression" caption in the bottom-right corner, 6.5 pt body font on a light
+  background. On an edge that bleeds, the caption sits 13 mm in from the drawn edge (bleed + safe margin).
+- An image slot the layout left unfilled: a light neutral frame with "Image needed".
+- Text: newlines become line breaks; `list` slots become one list item per line (two columns for
+  `overview_highlights` and `amenities_list`; in `specs_list` the text before ": " is set as a label). `rera_number`
+  is printed after "RERA No.". Text boxes never clip.
+- Logos: the brand kit's `logo_path` (SVG or PNG, relative to `brand_dir`, the `sample/` folder in the pipeline) when
+  the file exists, otherwise the company name in the heading font. Text inside an SVG logo must name a bundled family,
+  or WeasyPrint embeds a system font; the sample logo's text is set in Inter.
+- QR: the `qrcode` package, vector SVG (one path, no raster), error correction M, quiet zone of 4 modules, at the
+  slot's 25 mm.
+
+**Text overflow.** WeasyPrint's public `Page.anchors` gives the position of every element with an `id`. Each text slot
+holds an empty start mark and end mark; the distance between them is the height of its text. Text taller than the slot
+(by more than `text_overflow_tolerance_mm`, 0.5 mm) becomes a `render.text_overflow` warning routed to `copywriter`,
+with its page. The warnings are written to `out_dir/render_issues.json` (an empty list when there are none) and
+logged. They do not reach `PipelineState` yet: that needs a field on `RenderResult` and a line in the graph's
+renderer node.
+
+**In the pipeline.** `real_agents()` uses `RealRenderer`, which writes into `out/<thread id>/` (git-ignored; outside a
+graph run, `out/run-<time>-<id>/`). `real_agents(out_root=...)` changes the folder. `stub_agents()` keeps the stub,
+because CI has no Pango; graph tests of `real_agents()` pass the stub renderer.
+
+Render the sample (WSL; generates `sample/images/` if any image is missing):
+
+```
+~/.venvs/brochure/bin/python tools/render_sample.py                 # writes out/sample/brochure.pdf and page-1..8.png
+~/.venvs/brochure/bin/python tools/render_sample.py --out /tmp/x    # writes /tmp/x/sample/...
+```
+
+It runs the graph with the stub brief, vision and copy (no LLM), the real layout and the real renderer, stops at human
+review, and prints the PDF path, the PNG paths and every warning (the layout's, then any text overflow). A copy of the
+8 PNGs (100 DPI, 0.33 MB in all) is committed in `sample/pages/` for QA critic work. The integration tests render the
+sample and check the page count, every page's boxes, that only Inter and Open Sans are embedded, the extracted text
+(RERA number on pages 1 and 8, project name on page 1, disclaimer on page 8, "Artist's impression" on exactly the
+pages with a render), the 8 PNGs and that the hero reaches the bleed edge on page 1:
+
+```
+~/.venvs/brochure/bin/python -m pytest tests/integration/test_render_brochure.py -rs
+```
+
+### Fonts
+
+`assets/fonts/Inter/` (Inter 18pt Regular, SemiBold, Bold) and `assets/fonts/OpenSans/` (Regular, Italic, SemiBold,
+Bold): static TTFs from the Google Fonts downloads, each folder with its `OFL.txt` (SIL Open Font License 1.1).
+Variable fonts and other weights are not kept. 1.57 MB in all. `src/brochure/fonts.py` lists the faces;
+`brochure doctor` checks that each file and licence is there. The sample brand kit uses Inter for headings and Open
+Sans for body text.
 
 ## 9. LLM interface and testing without a network
 
@@ -658,9 +753,9 @@ Full rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
 - The Brief agent was written against Groq's documentation and tested with fakes. The live test has to be run with a key to confirm the provider accepts the schema.
 - The image tools are not in the graph.
 - The Copywriter's prompt cannot make a model count characters; a long slot is fixed by the retry, and a slot that fails twice shows `[copy needed: ...]`.
-- The copy keeps curly quotes and apostrophes and en and em dashes; check that the fonts have those glyphs when the renderer exists. Typographic spaces and hyphens are normalised to plain ones.
+- The copy keeps curly quotes and apostrophes and en and em dashes; Inter and Open Sans have those glyphs. A character the bundled fonts lack would fall back to a system font; the integration test only checks the sample. Typographic spaces and hyphens are normalised to plain ones.
 - The Copywriter does not see the brief's free-text prompt, so the user's emphasis (for example "the short walk to the station") does not reach the copy.
-- `brochure doctor` fails the fonts check because `assets/fonts` (Playfair Display, Inter) is not in the repo.
-- `jinja2`, `qrcode` and `pypdf` are declared in `pyproject.toml` but nothing in the code uses them yet. WeasyPrint
-  is only used by the doctor.
-- Integration tests only check that WeasyPrint imports and that Ghostscript runs.
+- Text overflow is measured and written to `render_issues.json` and the log, but it does not reach the graph's state, so it does not route to the copywriter yet (see "Template and renderer").
+- The PDF is RGB. CMYK conversion with Ghostscript is not built.
+- The slot heights are fixed, so short copy leaves gaps (for example between `overview_intro` and `overview_highlights`).
+- WeasyPrint is declared as `weasyprint>=62`, not pinned; the renderer was checked on 70.0.

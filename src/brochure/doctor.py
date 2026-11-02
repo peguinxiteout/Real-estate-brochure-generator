@@ -9,6 +9,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from brochure.fonts import BUNDLED_FAMILIES, missing_font_files
+
 MIN_PYTHON = (3, 12)
 DEFAULT_GS_ROOT = Path(r"C:\Program Files\gs")
 GS_PATH_NAMES_WINDOWS = ("gswin64c", "gswin32c", "gs")
@@ -120,15 +122,23 @@ def check_ghostscript(lookup: GsLookup | None = None) -> Check:
 
 def check_fonts(fonts_dir: Path | None = None) -> Check:
     fonts_dir = DEFAULT_FONTS_DIR if fonts_dir is None else fonts_dir
-    if fonts_dir.is_dir():
-        return Check("Bundled fonts", True, str(fonts_dir))
+    families = ", ".join(BUNDLED_FAMILIES)
+    if not fonts_dir.is_dir():
+        detail = f"{fonts_dir} not found"
+    else:
+        missing = missing_font_files(fonts_dir)
+        if not missing:
+            return Check("Bundled fonts", True, f"{families} in {fonts_dir}")
+        detail = f"missing from {fonts_dir}: {', '.join(missing)}"
     return Check(
         "Bundled fonts",
         False,
-        f"{fonts_dir} not found",
+        detail,
         (
-            "git restore assets/fonts    (if the fonts are already committed)",
-            "otherwise copy the OFL font files (Playfair Display, Inter) into assets\\fonts\\",
+            "git restore assets/fonts",
+            "or download Inter and Open Sans from Google Fonts and copy the static TTFs (Inter 18pt Regular, SemiBold, "
+            "Bold; Open Sans Regular, Italic, SemiBold, Bold) with each family's OFL.txt into assets/fonts/Inter and "
+            "assets/fonts/OpenSans",
         ),
     )
 

@@ -2,6 +2,39 @@
 
 Newest entry first.
 
+## 2026-11-02: classic-8pp template and renderer
+
+The first real brochure from the pipeline: the `classic-8pp` HTML/CSS template and a renderer that turns a
+BrochureSpec, the brand kit and the image tags into an 8-page print PDF and one PNG per page. No contract change,
+`slots.json` unchanged, no new dependency.
+
+- Fonts: `assets/fonts/Inter/` (18pt Regular, SemiBold, Bold) and `assets/fonts/OpenSans/` (Regular, Italic, SemiBold,
+  Bold), static TTFs with each family's `OFL.txt`, 1.57 MB. `src/brochure/fonts.py` lists the faces. The sample brand
+  kit's fonts are now Inter (heading) and Open Sans (body). `brochure doctor`'s fonts check now looks for each file and
+  licence, names what is missing, and its hint names the families and folders; in WSL all four checks pass.
+- `templates/classic-8pp/positions.json`: x, y (mm, top-left of the trim-side box) and a text role for every slot;
+  sizes stay in `slots.json`. `position_problems()` checks one position per slot, roles, bleed edges exactly on the trim
+  and other edges strictly inside it, text and QR inside the safe area, and no overlaps except the listed overlays (the
+  cover text and logo on the hero). `print_config.py` gains `safe_margin_mm` (10, provisional) and
+  `text_overflow_tolerance_mm` (0.5).
+- `templates/classic-8pp/brochure.html.j2` + `brochure.css`, `src/brochure/render/html.py`: absolutely positioned slot
+  boxes in mm, bundled `@font-face` only, brand colours as CSS variables, focal-point `object-position`, an "Artist's
+  impression" caption on renders, an "Image needed" frame for unfilled image slots, lists, line breaks, logo or company
+  name, a vector QR (`src/brochure/render/qr.py`: error correction M, 4-module quiet zone, 25 mm).
+- `src/brochure/render/pdf.py`: `render_brochure()` (WeasyPrint, imported lazily) writes `brochure.pdf` and
+  `page-<n>.png` (Ghostscript, 100 DPI). The blank proof and the brochure share `page_css`, `crop_marks_svg` and
+  `set_bleed_boxes`. Text overflow is measured with WeasyPrint's public `Page.anchors` and written to
+  `render_issues.json` as `render.text_overflow` warnings for the copywriter; it is not in the graph state yet.
+- Pipeline: `real_agents()` renders for real with `RealRenderer` into `out/<thread id>/` (`out_root` configurable);
+  `stub_agents()` keeps the stub. Graph code is unchanged. The graph tests of `real_agents()` now pass the stub renderer
+  (`tests.support.STUB_RENDERER`) because CI has no Pango; their assertions are unchanged.
+- `tools/render_sample.py`: the graph on the sample with stub brief, vision and copy, the real layout and the real
+  renderer; prints the PDF, the PNGs and the warnings. A copy of the 8 PNGs (100 DPI, 0.33 MB) is in `sample/pages/`.
+- `sample/logo.svg`: its text is set in Inter instead of a generic serif, which made WeasyPrint embed DejaVu Serif.
+- Tests: unit tests for fonts, positions rules, HTML generation, focal-point maths, the overflow check, QR
+  determinism, the renderer step and the tool; integration tests in WSL render the sample and check pages, boxes,
+  embedded fonts, extracted text, PNGs and the hero at the bleed edge.
+
 ## 2026-11-02: Print geometry spike
 
 Settles how the page boxes, bleed and crop marks are produced and checked, before the real template is built. A blank proof PDF only: no BrochureSpec content, templates or images. The pipeline, graph, agents, contracts and the renderer stub are unchanged. The slug and crop mark numbers are provisional until the printer confirms its spec.
