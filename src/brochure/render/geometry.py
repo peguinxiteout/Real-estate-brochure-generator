@@ -4,6 +4,7 @@ Pure maths from PrintConfig; no WeasyPrint import. Coordinates have their origin
 box, y upwards, which is how WeasyPrint writes its pages: the TrimBox is [0, 0, w, h] and the BleedBox and MediaBox
 start at negative coordinates.
 """
+import math
 from dataclasses import astuple, dataclass
 
 from brochure.print_config import PRINT, PrintConfig
@@ -45,10 +46,42 @@ class Box:
 
 
 @dataclass(frozen=True)
+class Segment:
+    """A straight line from (x0, y0), the end nearer the trim, to (x1, y1)."""
+
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+
+    @property
+    def length(self) -> float:
+        return math.hypot(self.x1 - self.x0, self.y1 - self.y0)
+
+    @property
+    def bounds(self) -> Box:
+        return Box(min(self.x0, self.x1), min(self.y0, self.y1), max(self.x0, self.x1), max(self.y0, self.y1))
+
+    def to_pt(self) -> "Segment":
+        return Segment(*(mm_to_pt(v) for v in astuple(self)))
+
+
+@dataclass(frozen=True)
 class PageGeometry:
     media: Box
     bleed: Box
     trim: Box
+    crop_marks: tuple[Segment, ...] = ()
+
+
+def _crop_marks(trim: Box, near: float, far: float) -> tuple[Segment, ...]:
+    """Two marks per trim corner, on the extensions of the trim lines, from near to far outside the trim edge."""
+    marks = []
+    for x, sx in ((trim.left, -1), (trim.right, 1)):
+        for y, sy in ((trim.bottom, -1), (trim.top, 1)):
+            marks.append(Segment(x + sx * near, y, x + sx * far, y))  # horizontal, on the line y = trim edge
+            marks.append(Segment(x, y + sy * near, x, y + sy * far))  # vertical, on the line x = trim edge
+    return tuple(marks)
 
 
 def page_geometry_mm(config: PrintConfig = PRINT) -> PageGeometry:
@@ -57,6 +90,7 @@ def page_geometry_mm(config: PrintConfig = PRINT) -> PageGeometry:
         media=trim.grown(config.bleed_mm + config.slug_beyond_bleed_mm),
         bleed=trim.grown(config.bleed_mm),
         trim=trim,
+        crop_marks=_crop_marks(trim, 0, config.crop_mark_length_mm),
     )
 
 
