@@ -11,6 +11,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from brochure.contracts.images import ImageTag
+from brochure.contracts.qa import QAIssue
 from brochure.dpi import DpiStatus, classify_dpi, effective_dpi
 from brochure.slots import ResolvedSlot, SlotTemplate
 
@@ -107,3 +108,35 @@ def matched_keywords(tag: ImageTag, rule: SlotRule) -> list[str]:
     """The slot's preferred keywords that appear in the image's subject or features, ignoring case."""
     text = " | ".join([tag.subject, *tag.features]).casefold()
     return [k for k in rule.keywords if k.casefold() in text]
+
+
+@dataclass(frozen=True)
+class Placement:
+    slot_id: str
+    image: str  # the image's path, as in its tag
+    dpi: float
+    band: DpiStatus
+
+
+@dataclass(frozen=True)
+class Assignment:
+    placements: dict[str, Placement]  # slot id -> what goes there, in picking order; an unfilled slot is absent
+    findings: list[QAIssue]  # what the reviewer should know: unfilled slots, warn-band images, unused images
+
+
+def assign_images(template: SlotTemplate, rules: LayoutRules, tags: list[ImageTag]) -> Assignment:
+    """Slots pick in priority order; each takes its best-scoring eligible image not taken yet. Ties go to the image
+    whose path sorts first, so the result does not depend on the order of `tags`."""
+    slots = {s.id: s for s in template.slots}
+    placements: dict[str, Placement] = {}
+    taken: set[str] = set()
+    for rule in sorted(rules.rules, key=lambda r: r.priority):
+        slot = slots[rule.slot]
+        candidates = [t for t in tags if t.path not in taken and eligible(t, slot, rule)]
+        if not candidates:
+            continue
+        best = min(candidates, key=lambda t: (-score(t, slot, rule), t.path))
+        dpi, band = fit(best, slot)
+        placements[slot.id] = Placement(slot.id, best.path, dpi, band)
+        taken.add(best.path)
+    return Assignment(placements, [])

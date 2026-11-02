@@ -1,7 +1,8 @@
 """Image assignment in code: eligibility, scoring, picking order, findings. Synthetic slots and tags, no files."""
 from brochure.contracts.images import ImageTag
 from brochure.dpi import DpiStatus
-from brochure.layout import SlotRule, eligible, fit, score
+from brochure.layout import LayoutRules, SlotRule, assign_images, eligible, fit, score
+from brochure.slots import SlotTemplate
 from brochure.slots import ResolvedSlot
 
 
@@ -85,3 +86,59 @@ def test_an_image_closer_to_the_slots_shape_scores_higher_because_less_is_croppe
 def test_a_better_quality_grade_scores_higher_good_then_fair_then_poor():
     good, fair, poor = (tag(path=f"{q}.jpg", quality=q) for q in ("good", "fair", "poor"))
     assert score(good, slot(), rule()) > score(fair, slot(), rule()) > score(poor, slot(), rule())
+
+
+# --- picking ------------------------------------------------------------------------------------------------------------
+
+def assign(slots_and_rules, tags):
+    template = SlotTemplate(template_id="t", slots=[s for s, _ in slots_and_rules])
+    rules = LayoutRules(template_id="t", rules=[r for _, r in slots_and_rules])
+    return assign_images(template, rules, tags)
+
+
+def placed(assignment) -> dict[str, str]:
+    return {slot_id: p.image for slot_id, p in assignment.placements.items()}
+
+
+def test_the_slot_with_the_first_priority_picks_first_and_gets_the_best_image():
+    best = tag(path="best.jpg", subject="tower at dusk")
+    other = tag(path="other.jpg", subject="garden")
+    # "small" is listed first and also wants the tower, but "hero" has priority 1
+    pairs = [(slot("small"), rule("small", keywords=["tower"], priority=2)),
+             (slot("hero"), rule("hero", keywords=["tower"], priority=1))]
+    assert placed(assign(pairs, [other, best])) == {"hero": "best.jpg", "small": "other.jpg"}
+    assert list(assign(pairs, [other, best]).placements) == ["hero", "small"]  # in picking order
+
+
+def test_each_image_is_used_at_most_once_and_a_slot_with_nothing_left_stays_unfilled():
+    pairs = [(slot(f"s{n}"), rule(f"s{n}", priority=n)) for n in (1, 2, 3)]
+    result = placed(assign(pairs, [tag(path="a.jpg"), tag(path="b.jpg")]))
+    assert sorted(result.values()) == ["a.jpg", "b.jpg"]
+    assert set(result) == {"s1", "s2"}
+
+
+def test_a_slot_takes_only_an_eligible_image():
+    pairs = [(slot("plan"), rule("plan", kinds=["floor_plan"], priority=1))]
+    assert placed(assign(pairs, [tag(path="a.jpg", kind="render")])) == {}
+
+
+def test_ties_go_to_the_path_that_sorts_first_whatever_the_input_order():
+    twins = [tag(path="b.jpg"), tag(path="a.jpg"), tag(path="c.jpg")]
+    pairs = [(slot("s1"), rule("s1", priority=1)), (slot("s2"), rule("s2", priority=2))]
+    assert placed(assign(pairs, twins)) == {"s1": "a.jpg", "s2": "b.jpg"}
+
+
+def test_the_same_input_gives_the_same_assignment_every_time_and_in_any_order():
+    import random
+
+    tags = [tag(path=f"{n}.jpg", width_px=1000 + 37 * n, height_px=700 + 11 * n, quality=q, subject=s)
+            for n, (q, s) in enumerate([("good", "pool"), ("fair", "gym"), ("poor", "pool deck"), ("good", "lounge"),
+                                        ("fair", "pool"), ("good", "garden")])]
+    pairs = [(slot(f"s{n}", width_mm=60 + 10 * n), rule(f"s{n}", keywords=["pool", "gym"][: n % 3], priority=n))
+             for n in (1, 2, 3, 4)]
+    first = assign(pairs, tags)
+    assert assign(pairs, tags) == first
+    for seed in range(5):
+        shuffled = tags[:]
+        random.Random(seed).shuffle(shuffled)
+        assert assign(pairs, shuffled) == first
