@@ -32,3 +32,15 @@ def windows(monkeypatch):
 @pytest.fixture
 def linux(monkeypatch):
     monkeypatch.setattr("sys.platform", "linux")
+
+
+@pytest.fixture
+def live_llm():
+    """The real LLM client from LLM_API_KEY (and LLM_BASE_URL / LLM_MODEL). Skips, with the reason, when no key is set."""
+    import os
+
+    from brochure.agents import llm_from_env
+
+    if not (os.environ.get("LLM_API_KEY") or "").strip():
+        pytest.skip("LLM_API_KEY is not set. Put a Groq key in the environment to run the live LLM test (see README).")
+    return llm_from_env()

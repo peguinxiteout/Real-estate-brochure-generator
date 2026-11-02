@@ -1,0 +1,26 @@
+{
+  "form": {
+    "name": "Aurelia Heights",
+    "rera_state": "Maharashtra",
+    "amenities": [
+      "Infinity pool", "Clubhouse", "Fully equipped gym", "Landscaped podium garden",
+      "Children's play area", "Co-working lounge", "Jogging track", "24x7 security"
+    ],
+    "specifications": [
+      {"category": "Flooring", "detail": "Vitrified tiles in living and bedrooms"},
+      {"category": "Kitchen", "detail": "Granite platform with stainless steel sink"},
+      {"category": "Doors", "detail": "Laminated flush doors with branded hardware"},
+      {"category": "Windows", "detail": "Powder-coated aluminium sliding windows"},
+      {"category": "Electrical", "detail": "Concealed copper wiring with modular switches"},
+      {"category": "Lifts", "detail": "Two high-speed lifts per tower"}
+    ],
+    "landmarks": [
+      {"name": "Meridian Metro Station", "distance_km": 1.2},
+      {"name": "Orchard International School", "distance_km": 0.8},
+      {"name": "Lakeside Hospital", "distance_km": 2.5},
+      {"name": "Central Business Park", "distance_km": 4.0},
+      {"name": "Meridian Mall", "distance_km": 1.8}
+    ]
+  },
+  "prompt": "Brochure for Aurelia Heights, two towers of homes for upper-middle-class families who want green space close to the metro. The RERA number is P99999000000 (SAMPLE). We are selling 2 BHK homes with 780 sq ft carpet area and 3 BHK homes with 1090 sq ft carpet area. Possession is December 2028. Keep the tone warm and aspirational, calm and confident, with no hype. Emphasise light, the podium garden and the short walk to the station."
+}

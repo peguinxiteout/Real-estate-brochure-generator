@@ -2,6 +2,18 @@
 
 Newest entry first.
 
+## 2026-11-01: Brief agent on Groq
+
+The Brief step now uses an LLM to fill empty form fields with facts the prompt states. The other agents are still stubs.
+
+- `src/brochure/llm/openai_compatible.py`: `OpenAICompatibleClient` (the `openai` SDK on any OpenAI-compatible base URL) and `client_from_env()`, which reads `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` (defaults: Groq and `openai/gpt-oss-120b`). Temperature 0. Strict `json_schema` on the models Groq documents as supporting it, JSON-object mode with the schema in the system message on any other. HTTP 429 is retried up to 3 attempts honouring `Retry-After`, then `LLMRateLimited`; other failures are `LLMError`; a reply that is not a JSON object is `LLMBadReply`. The key never appears in an error, a log or a repr. `images=` raises `NotImplementedError`.
+- `src/brochure/agents/brief.py` and `prompts/brief_extract.md`: `brief_agent(brief, llm) -> BriefForm`. One `brief.extract` call; the merge and the grounding check are in code. The form wins; every string and number the model fills must appear in the prompt; `rera_number` must appear verbatim; a bad reply is retried once; any failure returns the form unchanged and logs a warning.
+- `pipeline.real_agents(llm)`: the real Brief agent and the stubs for every other step.
+- Graph change (not a contract change): the brief node now keeps the form a brief step returns (`BriefOutcome.form`, default `None`). Without it the question loop ran on the original form and kept asking for fields the Brief agent had already filled. Stub runs are unchanged.
+- `sample/brief_sparse.json`; the live test `tests/llm/test_brief_live.py` (marker `llm`, skips without `LLM_API_KEY`).
+- CI now runs `-m "not integration and not llm"`.
+- `.env` is git-ignored; `.env.example` lists the three variable names. Dependency: `openai==3.42.0`.
+
 ## 2026-10-30: Pipeline on stub agents
 
 The whole flow (brief, copy, layout, render, QA loop, human review, export) runs end to end on the Aurelia Heights sample with no LLM and no rendering. Real agents will replace the stubs one at a time without changes to the graph.

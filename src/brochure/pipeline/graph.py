@@ -33,7 +33,10 @@ def build_graph(agents: Agents, checkpointer, llm):
 
     def brief(state: PipelineState):
         outcome = agents.brief(state, llm)
-        return {"project_facts": outcome.project_facts, "missing_fields": outcome.missing_fields}
+        update = {"project_facts": outcome.project_facts, "missing_fields": outcome.missing_fields}
+        if outcome.form is not None:  # the step filled in fields; ask_user must work on that form, not the original
+            update["brief"] = state.brief.model_copy(update={"form": outcome.form})
+        return update
 
     def vision(state: PipelineState):
         return {"image_tags": agents.vision(state, llm)}
