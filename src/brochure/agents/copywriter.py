@@ -50,11 +50,11 @@ TASK_SPEC = copy_task_spec(owned_slots(load_slots(TEMPLATE_FILE)))
 
 
 def _payload(inputs: CopyInputs, slots: list[ResolvedSlot]) -> dict:
-    """What the model is sent: the facts, what the images show, the tone and the slots to write. No paths, no geometry."""
+    """What the model is sent: the facts, what kind of image each is and what it shows, the tone and the slots to write. No paths, no geometry."""
     payload = {
         "project": inputs.facts.model_dump(exclude={"tone_notes"}),
         "company_name": inputs.company_name,
-        "images": [{"subject": tag.subject, "features": tag.features} for tag in inputs.image_tags],
+        "images": [{"kind": tag.kind, "subject": tag.subject, "features": tag.features} for tag in inputs.image_tags],
         "tone_notes": inputs.facts.tone_notes,
         "slots": [{"id": s.id, "page": s.page, "char_budget": s.char_budget, "comment": s.comment} for s in slots],
     }

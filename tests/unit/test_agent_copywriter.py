@@ -99,12 +99,12 @@ def test_the_payload_has_the_facts_the_images_the_tone_and_only_the_owned_slots(
     assert {s["id"] for s in payload["slots"]}.isdisjoint(VERBATIM_SLOTS)
 
 
-def test_the_payload_carries_each_images_subject_and_features_and_nothing_else_no_paths():
+def test_the_payload_carries_each_images_kind_subject_and_features_and_nothing_else_no_paths():
     _, llm = run()
     images = first_payload(llm)["images"]
     assert len(images) == 12
-    assert all(set(i) == {"subject", "features"} for i in images)
-    assert images[0] == {"subject": "Twin residential towers at dusk, seen from the podium garden",
+    assert all(set(i) == {"kind", "subject", "features"} for i in images)
+    assert images[0] == {"kind": "render", "subject": "Twin residential towers at dusk, seen from the podium garden",
                          "features": ["tower", "facade", "dusk sky", "landscaping"]}
     assert ".jpg" not in json.dumps(first_payload(llm))
 
@@ -316,3 +316,26 @@ def test_the_prompt_asks_for_headroom_under_each_budget():
 def test_the_prompt_forbids_the_details_the_code_checks_cannot_see_views_materials_and_travel_times():
     prompt = PROMPT_FILE.read_text(encoding="utf-8")
     assert "views" in prompt and "walking distance" in prompt
+
+
+def test_the_payload_kinds_are_the_tags_kinds_so_the_model_can_tell_a_render_from_a_plan():
+    _, llm = run()
+    kinds = [i["kind"] for i in first_payload(llm)["images"]]
+    tags = inputs().image_tags
+    assert kinds == [t.kind for t in tags]
+    assert {"render", "floor_plan", "map"} <= set(kinds)
+
+
+def test_no_code_check_looks_for_artists_impression_so_a_plan_called_one_is_still_accepted():
+    # The wording rule lives in the prompt only; the live test reads the real copy.
+    wrong = "The floor plans are an artist's impression of the layouts."
+    copy, llm = play({**GOOD, "plan_note": wrong})
+    assert copy["plan_note"] == wrong
+    assert len(llm.calls) == 1
+
+
+def test_the_prompt_says_only_renders_are_an_artists_impression():
+    rule = next(line for line in PROMPT_FILE.read_text(encoding="utf-8").splitlines() if line.startswith("10."))
+    for word in ("render", "photo", "floor_plan", "map", "artist's impression"):
+        assert word in rule
+    assert "never" in rule
