@@ -311,3 +311,8 @@ def test_the_prompt_asks_for_sentence_case_headlines_because_the_name_check_reje
 
 def test_the_prompt_asks_for_headroom_under_each_budget():
     assert "85%" in PROMPT_FILE.read_text(encoding="utf-8")
+
+
+def test_the_prompt_forbids_the_details_the_code_checks_cannot_see_views_materials_and_travel_times():
+    prompt = PROMPT_FILE.read_text(encoding="utf-8")
+    assert "views" in prompt and "walking distance" in prompt
