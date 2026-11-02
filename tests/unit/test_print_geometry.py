@@ -1,7 +1,7 @@
 import pytest
 
 from brochure.print_config import PRINT
-from brochure.render.geometry import Box, mm_to_pt, page_geometry_mm
+from brochure.render.geometry import Box, mm_to_pt, page_geometry_mm, page_geometry_pt
 
 TOL_PT = 0.01
 
@@ -44,3 +44,14 @@ def test_boxes_are_nested_trim_inside_bleed_inside_media():
     assert g.bleed.contains(g.trim)
     assert not g.trim.contains(g.bleed)
     assert not g.bleed.contains(g.media)
+
+
+def boxes_approx(actual: Box, expected: tuple[float, float, float, float]) -> bool:
+    return all(abs(a - e) <= TOL_PT for a, e in zip((actual.left, actual.bottom, actual.right, actual.top), expected))
+
+
+def test_boxes_in_points():
+    g = page_geometry_pt()
+    assert boxes_approx(g.trim, (0, 0, 595.2756, 841.8898))
+    assert boxes_approx(g.bleed, (-8.5039, -8.5039, 603.7795, 850.3937))
+    assert boxes_approx(g.media, (-36.8504, -36.8504, 632.1260, 878.7402))

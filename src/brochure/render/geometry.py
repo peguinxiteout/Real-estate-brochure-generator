@@ -58,3 +58,8 @@ def page_geometry_mm(config: PrintConfig = PRINT) -> PageGeometry:
         bleed=trim.grown(config.bleed_mm),
         trim=trim,
     )
+
+
+def page_geometry_pt(config: PrintConfig = PRINT) -> PageGeometry:
+    mm = page_geometry_mm(config)
+    return PageGeometry(media=mm.media.to_pt(), bleed=mm.bleed.to_pt(), trim=mm.trim.to_pt())
