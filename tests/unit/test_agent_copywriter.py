@@ -296,3 +296,8 @@ def test_a_slot_that_breaks_a_content_check_is_asked_for_again_with_that_reason(
     assert len(llm.calls) == 2
     assert reason in llm.calls[1][1]["problems"]["cover_tagline"]
     assert copy["cover_tagline"] == GOOD["cover_tagline"]
+
+
+def test_the_copy_task_asks_for_low_reasoning_so_a_reasoning_model_has_room_left_to_write_the_json():
+    assert TASK_SPEC.reasoning_effort == "low"
+    assert copy_task_spec(owned_slots(TEMPLATE)).reasoning_effort == "low"

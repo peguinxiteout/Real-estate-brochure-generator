@@ -6,3 +6,4 @@ from dataclasses import dataclass
 class TaskSpec:
     system: str
     schema: dict | None = None
+    reasoning_effort: str | None = None  # e.g. "low"; sent only to models that take it

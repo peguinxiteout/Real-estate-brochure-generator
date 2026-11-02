@@ -258,3 +258,30 @@ def test_the_providers_message_is_truncated_to_300_characters():
 def test_an_error_with_an_empty_body_is_just_the_status():
     assert error_of(httpx.Response(500, json={})).endswith("HTTP 500")
     assert error_of(httpx.Response(503, text="")).endswith("HTTP 503")
+
+
+# --- reasoning effort: a reasoning model spends its output budget thinking unless told to think less -------------------
+
+THINKING_TASKS = {"copy.write": TaskSpec(system="Write.", schema=SCHEMA, reasoning_effort="low"), "plain.task": TASKS["plain.task"]}
+
+
+def reasoning_body(model, task="copy.write"):
+    transport = Transport(completion('{"name": "x"}'))
+    client = OpenAICompatibleClient(
+        BASE_URL, API_KEY, model, THINKING_TASKS, http_client=httpx.Client(transport=httpx.MockTransport(transport))
+    )
+    client.complete(task, {})
+    return transport.body()
+
+
+def test_a_task_that_asks_for_low_reasoning_sends_reasoning_effort_to_a_gpt_oss_model():
+    assert reasoning_body("openai/gpt-oss-120b")["reasoning_effort"] == "low"
+    assert reasoning_body("openai/gpt-oss-20b")["reasoning_effort"] == "low"
+
+
+def test_a_task_that_does_not_ask_sends_no_reasoning_effort():
+    assert "reasoning_effort" not in reasoning_body("openai/gpt-oss-120b", task="plain.task")
+
+
+def test_reasoning_effort_is_not_sent_to_a_model_that_may_reject_it():
+    assert "reasoning_effort" not in reasoning_body("llama-3.3-70b-versatile")

@@ -34,6 +34,10 @@ STRICT_SCHEMA_MODELS = frozenset({
 })
 
 
+# Model families that accept the reasoning_effort parameter. Others may answer HTTP 400 to it, so it is not sent.
+REASONING_EFFORT_PREFIXES = ("openai/gpt-oss",)
+
+
 class OpenAICompatibleClient:
     def __init__(
         self,
@@ -65,8 +69,16 @@ class OpenAICompatibleClient:
                 {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
             ],
             response_format=response_format,
+            **self._reasoning(spec),
         )
         return self._parse(response.choices[0].message.content)
+
+    def _reasoning(self, spec: TaskSpec) -> dict:
+        """reasoning_effort for a task that asks for it, on the models known to take it. A reasoning model that thinks
+        at length can spend its whole output budget before it writes the JSON (HTTP 400, json_validate_failed)."""
+        if spec.reasoning_effort and self.model.startswith(REASONING_EFFORT_PREFIXES):
+            return {"reasoning_effort": spec.reasoning_effort}
+        return {}
 
     @staticmethod
     def _parse(content: str | None) -> dict:

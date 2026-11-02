@@ -42,7 +42,8 @@ def copy_task_spec(slots: list[ResolvedSlot]) -> TaskSpec:
         "required": [slot.id for slot in slots],
         "additionalProperties": False,
     }
-    return TaskSpec(system=PROMPT_FILE.read_text(encoding="utf-8").strip(), schema=schema)
+    # Low reasoning: at the default a reasoning model can use its whole output budget thinking, and the JSON never arrives.
+    return TaskSpec(system=PROMPT_FILE.read_text(encoding="utf-8").strip(), schema=schema, reasoning_effort="low")
 
 
 TASK_SPEC = copy_task_spec(owned_slots(load_slots(TEMPLATE_FILE)))
