@@ -86,11 +86,12 @@ def _crop_marks(trim: Box, near: float, far: float) -> tuple[Segment, ...]:
 
 def page_geometry_mm(config: PrintConfig = PRINT) -> PageGeometry:
     trim = Box(0, 0, config.page_width_mm, config.page_height_mm)
+    near = config.crop_mark_offset_mm
     return PageGeometry(
         media=trim.grown(config.bleed_mm + config.slug_beyond_bleed_mm),
         bleed=trim.grown(config.bleed_mm),
         trim=trim,
-        crop_marks=_crop_marks(trim, 0, config.crop_mark_length_mm),
+        crop_marks=_crop_marks(trim, near, near + config.crop_mark_length_mm),
     )
 
 

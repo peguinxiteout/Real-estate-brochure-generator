@@ -76,3 +76,16 @@ def test_two_crop_marks_per_corner_one_horizontal_one_vertical_on_the_trim_lines
         # each mark points away from the page: its far end is further from the trim than its near end
         assert abs(h[0].x1 - cx) > abs(h[0].x0 - cx)
         assert abs(v[0].y1 - cy) > abs(v[0].y0 - cy)
+
+
+def distance_outside_trim(trim: Box, x: float, y: float) -> float:
+    """How far a point on a trim line extension lies outside the trim edge it extends."""
+    return max(trim.left - x, x - trim.right, trim.bottom - y, y - trim.top)
+
+
+def test_each_crop_mark_starts_5_mm_from_the_trim_edge_and_is_5_mm_long():
+    g = page_geometry_mm()
+    for m in g.crop_marks:
+        assert distance_outside_trim(g.trim, m.x0, m.y0) == pytest.approx(5), m
+        assert distance_outside_trim(g.trim, m.x1, m.y1) == pytest.approx(10), m
+        assert m.length == pytest.approx(5), m
