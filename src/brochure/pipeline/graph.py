@@ -76,7 +76,8 @@ def build_graph(agents: Agents, checkpointer, llm):
         issues, qa_round = agents.qa(state, llm), state.qa_round + 1
         update = {"qa_issues": issues, "qa_round": qa_round}
         if issues and qa_next(issues, qa_round) == "human_review":
-            update["spec"] = state.spec.model_copy(update={"qa_warnings": issues})  # shown to the reviewer
+            # shown to the reviewer, after the layout's own findings (the layout rebuilds the spec on every pass)
+            update["spec"] = state.spec.model_copy(update={"qa_warnings": [*state.spec.qa_warnings, *issues]})
         return update
 
     def after_qa(state: PipelineState) -> Literal["copywriter", "layout", "human_review"]:
