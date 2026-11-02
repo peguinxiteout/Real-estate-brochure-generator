@@ -251,7 +251,7 @@ def test_llm_from_env_builds_a_client_that_knows_the_agents_tasks():
     from brochure.agents import llm_from_env
 
     client = llm_from_env({"LLM_API_KEY": "k"})
-    assert set(client.tasks) == {"brief.extract"}
+    assert set(client.tasks) == {"brief.extract", "copy.write"}
 
 
 def test_the_fallback_warning_carries_the_providers_error_details_and_never_the_key(caplog):
