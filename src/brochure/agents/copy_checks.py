@@ -8,6 +8,8 @@ from brochure.contracts.project import ProjectFacts
 
 DATA_DIR = Path(__file__).parent / "data"
 TARGET_SHARE_OF_BUDGET = 0.85
+CHARS_PER_WORD = 7  # the one constant that turns a char budget into a word limit
+
 
 NUMBER_WORDS = {
     word: value
@@ -47,6 +49,7 @@ def _phrase_pattern(entry: str) -> re.Pattern:
 
 def _listed_in(text: str, data_file: str) -> list[str]:
     """The entries of the data file that the text contains."""
+    text = text.replace("’", "'")  # a curly apostrophe matches the plain one in a data file
     return [entry for entry in _data_lines(data_file) if _phrase_pattern(entry).search(text)]
 
 
@@ -114,6 +117,11 @@ def _unknown_names(text: str, known: Known) -> list[str]:
 
 
 _HYPHENS = {"\u2010": "-", "\u2011": "-"}
+
+
+def max_words(char_budget: int) -> int:
+    """The word limit sent to the model for a slot: its char budget divided by CHARS_PER_WORD, rounded down."""
+    return char_budget // CHARS_PER_WORD
 
 
 def normalise_text(text: str) -> str:

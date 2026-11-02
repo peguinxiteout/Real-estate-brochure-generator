@@ -34,7 +34,7 @@ def test_empty_text_fails(text):
 # --- numbers: every number in the copy must be one the facts contain -------------------------------------------------
 
 def test_a_number_the_facts_do_not_contain_fails_and_the_reason_names_it():
-    reasons = check("Just 5 minutes from the metro.")
+    reasons = check("Just 5 floors above the metro.")
     assert len(reasons) == 1 and "5" in reasons[0] and "facts" in reasons[0]
 
 
@@ -62,7 +62,7 @@ def test_the_digits_around_an_x_in_24x7_are_read_as_numbers_from_the_facts():
 
 
 def test_a_number_word_that_the_facts_do_not_contain_fails():
-    reasons = check("Five minutes from the metro")
+    reasons = check("Five floors above the metro")
     assert len(reasons) == 1 and "five" in reasons[0].lower()
 
 
@@ -73,7 +73,7 @@ def test_a_number_word_is_matched_to_the_same_number_written_in_digits():
 def test_number_words_run_from_one_to_twenty_whatever_their_case():
     assert len(check("TWENTY homes")) == 1
     assert len(check("One home")) == 1
-    assert check("a stone's throw, alone, someone, phone and money") == []  # whole words only
+    assert check("a stone wall, alone, someone, phone and money") == []  # whole words only
 
 
 def test_a_number_word_in_the_facts_counts():
@@ -271,3 +271,34 @@ def test_the_checks_see_normalised_text_so_a_sentence_start_after_an_em_space_is
     copy, llm = play({**GOOD, "cover_tagline": "Calm streets.\u2003Zorbaville is near"})
     assert len(llm.calls) == 1
     assert copy["cover_tagline"] == "Calm streets. Zorbaville is near"
+
+
+# --- word limits: a model counts words, not characters -----------------------------------------------------------------
+
+from brochure.agents import copy_checks  # noqa: E402
+
+
+def test_the_word_limit_is_the_char_budget_divided_by_one_constant_rounded_down():
+    assert copy_checks.CHARS_PER_WORD == 7
+    assert [copy_checks.max_words(b) for b in (600, 250, 240, 160, 90, 60, 40, 7, 6)] == [85, 35, 34, 22, 12, 8, 5, 1, 0]
+
+
+def test_the_word_limit_follows_the_constant(monkeypatch):
+    monkeypatch.setattr(copy_checks, "CHARS_PER_WORD", 5)
+    assert copy_checks.max_words(600) == 120
+
+
+# --- more banned phrases: the travel-time and location clichés -------------------------------------------------------------
+
+@pytest.mark.parametrize("phrase", ["heart of", "prime location", "minutes from", "minutes away", "walking distance", "steps from", "stone's throw"])
+def test_each_location_cliche_is_rejected_and_the_reason_names_it(phrase):
+    reasons = check(f"Homes in the area, {phrase} the metro")
+    assert any("superlative" in r and phrase in r for r in reasons)
+
+
+def test_a_stones_throw_written_with_a_curly_apostrophe_is_rejected_too():
+    assert any("stone's throw" in r for r in check("Homes a stone\u2019s throw from the metro"))
+
+
+def test_the_new_phrases_are_whole_words_only():
+    assert check("Hearts of oak, a primer location, minute detail, a walking track") == []

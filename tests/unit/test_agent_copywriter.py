@@ -285,7 +285,7 @@ def test_the_qa_issues_are_sent_again_with_the_second_call():
 
 @pytest.mark.parametrize("bad, reason", [
     ("Homes of 900 sq ft", "900"),                       # a number the facts do not have
-    ("Five minutes from the metro", "Five"),             # a number word the facts do not have
+    ("Five floors above the metro", "Five"),             # a number word the facts do not have
     ("Near Hinjewadi and the metro", "Hinjewadi"),       # an invented place
     ("Priced for families", "money"),                    # money
     ("The best address in Pune", "best"),                # a superlative

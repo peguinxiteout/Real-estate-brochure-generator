@@ -10,3 +10,12 @@ assured returns
 award-winning
 world-class
 unmatched
+
+# location clichés and travel times: a distance is stated in km as given, never as a time or a feeling
+heart of
+prime location
+minutes from
+minutes away
+walking distance
+steps from
+stone's throw
