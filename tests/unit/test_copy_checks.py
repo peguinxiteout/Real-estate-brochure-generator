@@ -148,3 +148,28 @@ def test_the_allow_list_is_a_data_file_shipped_with_the_package():
     assert (DATA_DIR / "copy_name_allowlist.txt").is_file()
     pyproject = tomllib.loads((Path(__file__).parents[2] / "pyproject.toml").read_text(encoding="utf-8"))
     assert "agents/data/*.txt" in pyproject["tool"]["setuptools"]["package-data"]["brochure"]
+
+
+# --- money: no prices, currency or investment language ---------------------------------------------------------------
+
+@pytest.mark.parametrize("word", ["\u20b9", "Rs", "INR", "lakh", "crore", "price", "EMI", "returns", "investment"])
+def test_each_money_word_is_rejected_and_the_reason_names_it(word):
+    reasons = check(f"Calm homes with {word} in the line")  # "Rs" or "EMI" is also an unknown name; that reason may come too
+    assert any("money" in r and word in r for r in reasons)
+
+
+def test_money_words_are_matched_as_whole_words_in_any_case():
+    assert any("money" in r for r in check("The PRICE is a surprise"))
+    assert any("money" in r for r in check("a good price"))
+    assert check("Doors, stairs, pricey-free walls, an investigation and a priceless view") == []
+
+
+def test_a_currency_symbol_is_rejected_even_when_a_digit_follows_it():
+    assert any("money" in r for r in check("From \u20b95 only"))
+
+
+def test_the_money_words_are_a_data_file():
+    from brochure.agents.copy_checks import DATA_DIR
+
+    words = (DATA_DIR / "copy_money_words.txt").read_text(encoding="utf-8")
+    assert {"\u20b9", "Rs", "INR", "lakh", "crore", "price", "EMI", "returns", "investment"} <= set(words.split())

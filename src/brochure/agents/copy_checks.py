@@ -35,6 +35,18 @@ def _data_lines(name: str) -> list[str]:
     return [line.strip() for line in lines if line.strip() and not line.lstrip().startswith("#")]
 
 
+def _phrase_pattern(entry: str) -> re.Pattern:
+    """A whole-word, case-insensitive pattern for a word or phrase; spaces in a phrase match any run of spaces."""
+    start = r"(?<!\w)" if re.match(r"\w", entry) else ""  # an entry such as the rupee sign has no word edge
+    end = r"(?!\w)" if re.search(r"\w$", entry) else ""
+    return re.compile(start + r"\s+".join(re.escape(part) for part in entry.split()) + end, re.IGNORECASE)
+
+
+def _listed_in(text: str, data_file: str) -> list[str]:
+    """The entries of the data file that the text contains."""
+    return [entry for entry in _data_lines(data_file) if _phrase_pattern(entry).search(text)]
+
+
 def _name_key(word: str) -> str:
     """A word as compared: lower case, without a possessive ('s)."""
     word = word.casefold()
@@ -109,4 +121,6 @@ def problems(text: str, char_budget: int, known: Known) -> list[str]:
         reasons.append(f"not in the project facts: number {', '.join(unknown)}")
     if unknown := _unknown_names(text, known):
         reasons.append(f"not in the project facts: name {', '.join(unknown)}")
+    if money := _listed_in(text, "copy_money_words.txt"):
+        reasons.append(f"money or investment wording: {', '.join(money)}")
     return reasons
