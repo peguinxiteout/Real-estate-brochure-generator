@@ -64,7 +64,7 @@ flowchart TD
 | 1. Brief agent | Turns the form and the prompt into `ProjectFacts`. Lists required fields that are missing in `missing_fields` so the user can be asked. | Real. `real_agents()` runs the Brief agent (one LLM call) before the form-to-facts conversion and the question loop (bad answers are asked again). `stub_agents()` skips the LLM and uses the form only. |
 | 2. Vision agent | Runs in parallel with step 1. Describes each photo as an `ImageTag` (kind, subject, quality, focal point). | Stub: returns the 12 sample image tags. |
 | 3. Image tools | Plain code, not an agent. For each image: crops it to its slot's aspect ratio around the focal point, fixes exposure, runs the DPI check, and upscales by at most 2x. Low-resolution images are flagged and limited to small slots. Planned, not built. | Not built, not in the graph. |
-| 4. Copywriter | Writes the text for each text slot, within its `char_budget`. | Real. `real_agents()` runs the Copywriter agent (one LLM call, a second only for slots that fail a check) for the 8 free-text slots; code fills the other 10 text slots word for word. `stub_agents()` uses sample text. |
+| 4. Copywriter | Writes the text for each text slot, within its `char_budget`. | Real. `real_agents()` runs the Copywriter agent (one LLM call, a second only for slots that fail a check) for the 7 free-text slots; code fills the other 11 text slots word for word. `stub_agents()` uses sample text. |
 | 5. Layout agent | Chooses which image and text goes in which slot and produces the `BrochureSpec`. Also applies the human's chat edits. | Stub: places the sample images and text in every slot. |
 | 6. Renderer | Fills the HTML/CSS template from the spec and produces the PDF and one PNG per page. | Stub: fake paths, no files. |
 | 7. QA critic | Looks at the pages and the spec and returns `QAIssue`s. Each issue says who should fix it (`route_to`). The loop stops after 3 rounds. | Stub: no issues unless scripted. The routing and the 3-round limit are real. |
@@ -166,7 +166,7 @@ on the merged form. Because the brief step runs again after the user answers, a 
 The prompt is `src/brochure/agents/prompts/copy_write.md`; the reply schema is strict, with one required string
 property per owned slot (it says nothing about length; the code checks that). The model is sent only: the
 `ProjectFacts` (without the tone), the company name, each image's `kind`, `subject` and `features` (no paths), the tone notes,
-the owned slots (`id`, `page`, `char_budget`, `comment`) and, when the QA loop sent the run back, the QA issues routed to
+the owned slots (`id`, `page`, `char_budget`, `max_words`, `comment`) and, when the QA loop sent the run back, the QA issues routed to
 the copywriter. Facts are strict, wording is free.
 
 **Which slots it writes.** Text slots of `classic-8pp` are split in two. Code fills the verbatim slots word for word
@@ -174,14 +174,15 @@ the copywriter. Facts are strict, wording is free.
 
 | Written by the Copywriter (char budget) | Filled by code from the facts and the brand kit (char budget) |
 |---|---|
-| `cover_title` (40), `cover_tagline` (90), `overview_headline` (60), `overview_intro` (600), `overview_highlights` (240), `amenities_blurb` (250), `plan_note` (160), `about_headline` (60) | `cover_rera_line` (60), `rera_number` (60), `location_address` (120), `location_landmarks` (400), `amenities_list` (300), `config_table` (400), `specs_list` (700), `about_text` (450), `contact_block` (200), `disclaimer` (500) |
+| `cover_tagline` (90, 12 words), `overview_headline` (60, 8), `overview_intro` (600, 85), `overview_highlights` (240, 34), `amenities_blurb` (250, 35), `plan_note` (160, 22), `about_headline` (60, 8) | `cover_title` (40; the project name), `cover_rera_line` (60), `rera_number` (60), `location_address` (120), `location_landmarks` (400), `amenities_list` (300), `config_table` (400), `specs_list` (700), `about_text` (450), `contact_block` (200), `disclaimer` (500) |
 
 The pipeline step (`pipeline/real.py`) returns the verbatim slots plus whatever the Copywriter wrote as `slot_copy`.
 
 **Checks, per slot, in code** (`src/brochure/agents/copy_checks.py`). Each failure gives a short reason:
 
-- Budget: not empty, and `len(text) <= char_budget`. The reason for a long text names a length to aim for (85% of the
-  budget), because a model cannot count characters.
+- Budget: not empty, and `len(text) <= char_budget`. A model cannot count characters, so each slot is also sent a
+  `max_words` (the char budget divided by `CHARS_PER_WORD = 7`, rounded down, in `copy_checks.py`), and the reason for
+  a long text names a length to aim for (85% of the budget).
 - Numbers: every number (digits, `1,090`, decimals, and number words from one to twenty) must equal a number found
   anywhere in the `ProjectFacts`, including inside strings such as "2 BHK" or "Dec 2028". A thousands group split by a
   non-breaking space counts as one number.
@@ -190,20 +191,30 @@ The pipeline step (`pipeline/real.py`) returns the verbatim slots plus whatever 
 - Text is normalised first, in the checks and in the returned copy: any Unicode space separator (U+202F, U+00A0,
   U+2009, ...) becomes a plain space, and U+2010 and U+2011 become `-`. Curly quotes and apostrophes are kept.
 - Money: currency symbols and words (`copy_money_words.txt`), as whole words.
-- Superlatives and promises: `copy_banned_phrases.txt`, as whole words or phrases ("bestow" is fine).
+- Superlatives, promises and location clichés ("prime location", "minutes from", "walking distance", "stone's throw"):
+  `copy_banned_phrases.txt`, as whole words or phrases ("bestow" is fine).
 
 The three lists are data files in `src/brochure/agents/data/` (`copy_name_allowlist.txt`, `copy_money_words.txt`,
 `copy_banned_phrases.txt`): one entry per line, `#` comments, shipped with the package.
 
-**Retry and fallback.** If any slot fails, the model is asked once more with only the failing slots and the reason for
-each; slots that passed keep their first text whatever the second reply says. A slot that still fails is left out of
-the result and one warning lists it with its reasons. A reply that is not valid JSON (`LLMBadReply`) is asked for once more with the error, as the Brief agent does; a second
+**Retry and fallback.** If any slot fails, the model is asked once more with only the failing slots. A slot that fails
+only on length is *edited*, not rewritten: the retry sends its previous text (`shorten`) and asks for it shortened by
+cutting words or sentences. Any other failure (a number, a name, money, a banned phrase, an empty text) is written again
+with its reasons (`problems`). Slots that passed keep their first text whatever the second reply says.
+
+**Trim.** A slot still failing after the retry is trimmed in code: the longest run of whole sentences (or whole lines)
+from the start that fits the budget and passes every check is kept, and an info line says so. Nothing is cut inside a
+sentence ("sq. ft." does not end one). Headlines, taglines and titles (ids ending `_headline`, `_tagline`, `_title`) are
+never trimmed. If nothing fits, the slot is left out of the result and one warning lists it with its reasons.
+
+**Bad replies and client errors.** A reply that is not valid JSON (`LLMBadReply`) is asked for once more with the error, as the Brief agent does; a second
 one falls back like any other client error. A client error (`LLMRateLimited`, `LLMError`, or that second bad reply)
 stops the asking, keeps what already passed and logs one warning with the cause. The run never crashes on the model.
 
 **Wording rules that only the prompt enforces.** Only a render is an "artist's impression"; a photo is a photograph and a
 floor plan or a map is never called one. Each `overview_highlights` line states a fact from the project (a
-configuration, the location, the possession date, an amenity or a landmark), not a picture. No code check looks for
+configuration, the location, the possession date, an amenity or a landmark), not a picture. `overview_intro` is a short
+summary that does not list every landmark, configuration or specification. No code check looks for
 either, so the live test reads the copy (it asserts only that `plan_note` does not say "artist").
 
 **Missing copy.** The layout stub puts the visible text `[copy needed: <slot_id>]` in any text slot with no copy, so the
@@ -452,8 +463,8 @@ location (which the prompt never mentions) is still empty, and every filled valu
 fields the model filled and how many calls were made, never the key.
 
 The Copywriter has its own live test, `tests/llm/test_copy_live.py` (the sample project, the real client). It passes only
-if every one of the 8 owned slots is filled, every code check passes, no fallback warning was logged and there were
-one or two calls. It prints each slot with its length and budget, and the call count, never the key. Groq's free tier
+if every one of the 7 owned slots is filled, every code check passes, no fallback warning was logged and there were
+at most four calls. It prints each slot with its length and budget, whether it was trimmed, and the call count, never the key. Groq's free tier
 allows 8000 tokens a minute for `openai/gpt-oss-120b`; one copy call is 2500 to 3000, so wait a few seconds between runs.
 
 This example was run from the repo root:
