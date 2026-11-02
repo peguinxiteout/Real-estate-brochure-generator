@@ -32,6 +32,11 @@ class Box:
     def height(self) -> float:
         return self.top - self.bottom
 
+    def contains(self, other: "Box") -> bool:
+        """True when other lies inside this box (touching edges count as inside)."""
+        return (self.left <= other.left and self.bottom <= other.bottom
+                and other.right <= self.right and other.top <= self.top)
+
     def grown(self, by: float) -> "Box":
         return Box(self.left - by, self.bottom - by, self.right + by, self.top + by)
 

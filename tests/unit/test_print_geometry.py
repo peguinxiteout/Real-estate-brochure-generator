@@ -36,3 +36,11 @@ def test_trim_is_centred_in_the_media_box():
     margins = {g.trim.left - g.media.left, g.trim.bottom - g.media.bottom,
                g.media.right - g.trim.right, g.media.top - g.trim.top}
     assert margins == {PRINT.bleed_mm + PRINT.slug_beyond_bleed_mm}
+
+
+def test_boxes_are_nested_trim_inside_bleed_inside_media():
+    g = page_geometry_mm()
+    assert g.media.contains(g.bleed)
+    assert g.bleed.contains(g.trim)
+    assert not g.trim.contains(g.bleed)
+    assert not g.bleed.contains(g.media)
