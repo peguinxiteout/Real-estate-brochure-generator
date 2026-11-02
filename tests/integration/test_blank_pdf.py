@@ -1,5 +1,7 @@
 """The blank print-geometry proof, rendered with WeasyPrint and read back with pypdf (boxes) and Ghostscript (pixels)."""
 import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -11,6 +13,7 @@ from brochure.render.pdf import PROOF_FILL_RGB, render_blank_pdf
 
 pytestmark = pytest.mark.integration
 
+ROOT = Path(__file__).parents[2]
 PAGES = 8
 TOL_PT = 0.01
 
@@ -138,6 +141,16 @@ def test_crop_marks_are_dark_lines_with_white_beside_them(page1):
             beside = [(c, r + d) for d in (-4, 4)] if m.y0 == m.y1 else [(c + d, r) for d in (-4, 4)]
             assert any(dark(page1.pixels[p]) for p in across), (m, t, [page1.pixels[p] for p in across])
             assert all(white(page1.pixels[p]) for p in beside), (m, t, [page1.pixels[p] for p in beside])
+
+
+def test_make_blank_pdf_script_writes_an_8_page_pdf_to_the_path_given(weasyprint_module, tmp_path):
+    out = tmp_path / "proof.pdf"
+    result = subprocess.run([sys.executable, str(ROOT / "tools" / "make_blank_pdf.py"), "--out", str(out)],
+                            capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stderr
+    assert out.is_file(), f"no PDF at {out}; stdout: {result.stdout}"
+    assert len(PdfReader(out).pages) == 8
+    assert str(out) in result.stdout
 
 
 def test_nothing_dark_in_the_slug_except_the_crop_marks(page1):
