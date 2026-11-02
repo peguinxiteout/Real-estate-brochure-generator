@@ -2,6 +2,16 @@
 
 Newest entry first.
 
+## 2026-11-02: Print geometry spike
+
+Settles how the page boxes, bleed and crop marks are produced and checked, before the real template is built. A blank proof PDF only: no BrochureSpec content, templates or images. The pipeline, graph, agents, contracts and the renderer stub are unchanged. The slug and crop mark numbers are provisional until the printer confirms its spec.
+
+- `print_config.py` gains `slug_beyond_bleed_mm` (10, measured from the bleed edge, not the trim), `crop_mark_offset_mm` (5, trim edge to the mark's near end), `crop_mark_length_mm` (5), `crop_mark_weight_pt` (0.25) and `page_count_multiple` (4).
+- `src/brochure/render/geometry.py` (pure, no WeasyPrint): `mm_to_pt`, `page_geometry_mm` / `page_geometry_pt` (TrimBox 210 x 297 mm, BleedBox 216 x 303 mm, MediaBox 236 x 323 mm, eight crop mark segments, origin at the trim's lower-left), `check_page_count`. It refuses a config whose marks would touch the bleed or leave the MediaBox.
+- `src/brochure/render/pdf.py`: `render_blank_pdf(page_count, path)` writes the proof with WeasyPrint: per page, a light-blue fill over the bleed box, a thin rectangle on the trim line, the crop marks and the page number (system font; the brand fonts are not committed yet). WeasyPrint's CSS `bleed` is set to bleed + slug (13 mm) for the MediaBox; a `write_pdf` finisher sets the BleedBox to 3 mm, because WeasyPrint caps it at 10 pt (3.53 mm) from the trim; WeasyPrint's `marks: crop` is off (0.75 pt lines from the media edge in to half its bleed, not adjustable) and the marks are drawn as SVG lines. WeasyPrint is imported inside the function, so the page count check runs without Pango.
+- `tools/make_blank_pdf.py [--out PATH] [--pages N]` writes `sample/blank-8pp.pdf` by default (git-ignored).
+- Tests: geometry and page count unit tests (in CI); integration tests in WSL read every page's boxes with pypdf (within 0.01 pt) and render page 1 with Ghostscript at 100 DPI to check the bleed-edge colour, the white gap and slug, and the mark pixels. No new dependency (pypdf was already in the `dev` extra).
+
 ## 2026-11-02: Layout: image assignment in code
 
 The Layout step now assigns the project's images to the template's image slots by rules in code, with no LLM. Text, verbatim, logo and QR handling are unchanged.
