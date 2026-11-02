@@ -46,12 +46,16 @@ def test_the_real_model_writes_every_owned_slot_and_every_check_passes(live_llm,
         for slot in slots:
             text = copy.get(slot.id)
             shown = "(missing)" if text is None else f"[{len(text)}/{slot.char_budget}] {text!r}"
-            print(f"  {slot.id}: {shown}")
+            print(f"  {slot.id}: {shown}")  # overview_highlights is printed for reading; its wording is not asserted
 
     # the model was called, once or twice, and the agent did not fall back
     assert client.tasks and set(client.tasks) == {"copy.write"} and len(client.tasks) <= 2, client.tasks
     fallbacks = [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
     assert not fallbacks, f"the Copywriter left slots without copy: {fallbacks}"
+
+    # no render is involved in the plan note, so it must not call anything an artist's impression
+    # (a wording rule that lives in the prompt only; the code has no check for it)
+    assert "artist" not in copy["plan_note"].casefold(), f"plan_note: {copy['plan_note']!r}"
 
     # every owned slot is filled, and every text passes the same checks again
     assert set(copy) == {s.id for s in slots}
