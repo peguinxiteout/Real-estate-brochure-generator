@@ -8,7 +8,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from brochure.slots import SlotTemplate
+from brochure.contracts.images import ImageTag
+from brochure.dpi import DpiStatus, classify_dpi, effective_dpi
+from brochure.slots import ResolvedSlot, SlotTemplate
 
 LOGO_SLOTS = ("cover_logo", "back_logo")  # filled from the brand kit, never from the project's images
 
@@ -55,3 +57,14 @@ def rule_problems(rules: LayoutRules, template: SlotTemplate) -> list[str]:
         slots = ", ".join(r.slot for r in rules.rules if r.priority == priority)
         problems.append(f"priority {priority} is given to more than one slot ({slots})")
     return problems
+
+
+def fit(tag: ImageTag, slot: ResolvedSlot) -> tuple[float, DpiStatus]:
+    """The image's effective DPI in the slot (slot size with its bleed, as everywhere) and its band."""
+    dpi = effective_dpi(tag.width_px, tag.height_px, slot.bleed_width_mm, slot.bleed_height_mm)
+    return dpi, classify_dpi(dpi)
+
+
+def eligible(tag: ImageTag, slot: ResolvedSlot, rule: SlotRule) -> bool:
+    """The slot accepts the image's kind and the image is not below the DPI floor there."""
+    return tag.kind in rule.kinds and fit(tag, slot)[1] != DpiStatus.FAIL
