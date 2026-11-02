@@ -32,7 +32,7 @@ brochure = "brochure.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-brochure = ["agents/prompts/*.md"]
+brochure = ["agents/prompts/*.md", "agents/data/*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

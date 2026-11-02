@@ -13,6 +13,7 @@ from brochure.llm.tasks import TaskSpec
 
 MAX_ATTEMPTS = 3
 MAX_WAIT_SECONDS = 60.0
+MAX_DETAIL_CHARS = 300
 
 
 def _wait_seconds(retry_after: str | None, attempt: int) -> float:
@@ -31,6 +32,10 @@ STRICT_SCHEMA_MODELS = frozenset({
     "qwen/qwen3.8-27b",
     "meta-models/muse-spark-open",
 })
+
+
+# Model families that accept the reasoning_effort parameter. Others may answer HTTP 400 to it, so it is not sent.
+REASONING_EFFORT_PREFIXES = ("openai/gpt-oss",)
 
 
 class OpenAICompatibleClient:
@@ -64,8 +69,16 @@ class OpenAICompatibleClient:
                 {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
             ],
             response_format=response_format,
+            **self._reasoning(spec),
         )
         return self._parse(response.choices[0].message.content)
+
+    def _reasoning(self, spec: TaskSpec) -> dict:
+        """reasoning_effort for a task that asks for it, on the models known to take it. A reasoning model that thinks
+        at length can spend its whole output budget before it writes the JSON (HTTP 400, json_validate_failed)."""
+        if spec.reasoning_effort and self.model.startswith(REASONING_EFFORT_PREFIXES):
+            return {"reasoning_effort": spec.reasoning_effort}
+        return {}
 
     @staticmethod
     def _parse(content: str | None) -> dict:
@@ -95,7 +108,34 @@ class OpenAICompatibleClient:
                 raise LLMError(f"could not connect to {self.base_url}") from None
             except APIStatusError as error:
                 # `from None`: the SDK error can carry the server's text, which might echo the key.
-                raise LLMError(f"the provider answered HTTP {error.status_code}: {self._scrub(str(error.message))}") from None
+                raise LLMError(self._describe(error.response)) from None
+
+    def _describe(self, response) -> str:
+        """What the provider said about an HTTP error: status, error type/code and message, with the key redacted.
+
+        OpenAI-compatible APIs answer {"error": {"message", "type", "code"}}; anything else is shown as a short raw
+        snippet. The message is cut to MAX_DETAIL_CHARS.
+        """
+        status = response.status_code
+        try:
+            body = response.json()
+        except ValueError:
+            body = response.text
+        error = body.get("error", body) if isinstance(body, dict) else body
+        if isinstance(error, dict):
+            labels = [str(error[k]) for k in ("type", "code") if error.get(k)]
+            detail = str(error.get("message") or "")
+        else:
+            labels, detail = [], "" if error is None else str(error)
+        detail = self._scrub(" ".join(detail.split()))
+        if len(detail) > MAX_DETAIL_CHARS:
+            detail = detail[:MAX_DETAIL_CHARS] + "..."
+        text = f"the API key was rejected (HTTP {status})" if status == 401 else f"the provider answered HTTP {status}"
+        if labels:
+            text += f" [{' / '.join(labels)}]"
+        if detail:
+            text += f": {detail}"
+        return self._scrub(text)
 
     def _format(self, task: str, spec: TaskSpec) -> tuple[str, dict]:
         """The system message and response_format for a task: strict json_schema where the model supports it."""

@@ -1,0 +1,176 @@
+"""The checks on one slot of copy: facts are strict, wording is free. Each check gives short readable reasons."""
+import re
+import unicodedata
+from dataclasses import dataclass
+from pathlib import Path
+
+from brochure.contracts.project import ProjectFacts
+
+DATA_DIR = Path(__file__).parent / "data"
+TARGET_SHARE_OF_BUDGET = 0.85
+CHARS_PER_WORD = 7  # the one constant that turns a char budget into a word limit
+
+
+NUMBER_WORDS = {
+    word: value
+    for value, word in enumerate(
+        "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen "
+        "eighteen nineteen twenty".split(),
+        start=1,
+    )
+}
+_THOUSANDS_SEPARATORS = r",\u00a0\u202f\u2009"  # a comma, or a non-breaking, narrow or thin space: 1,090 or 1 090
+_NUMBER = re.compile(r"\d{1,3}(?:[" + _THOUSANDS_SEPARATORS + r"]\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?")
+_WORD = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)*")  # letters, with an inner apostrophe: Children's
+_SKIPPED_BEFORE_A_WORD = " \t\"'“‘([*•–—-"  # quotes, brackets and bullets in front of a sentence's first word
+_SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])[ \t]+(?=[A-Z])|[ \t]*\n\s*")
+_NUMBER_WORD = re.compile(r"\b(" + "|".join(NUMBER_WORDS) + r")\b", re.IGNORECASE)
+
+
+@dataclass(frozen=True)
+class Known:
+    """What the copy may mention: the numbers and the words found in the project facts and the company name."""
+
+    numbers: frozenset[float]
+    words: frozenset[str]
+
+
+def _data_lines(name: str) -> list[str]:
+    """The entries of a data file: one per line, blank lines and # comments skipped."""
+    lines = (DATA_DIR / name).read_text(encoding="utf-8").splitlines()
+    return [line.strip() for line in lines if line.strip() and not line.lstrip().startswith("#")]
+
+
+def _phrase_pattern(entry: str) -> re.Pattern:
+    """A whole-word, case-insensitive pattern for a word or phrase; spaces in a phrase match any run of spaces."""
+    start = r"(?<!\w)" if re.match(r"\w", entry) else ""  # an entry such as the rupee sign has no word edge
+    end = r"(?!\w)" if re.search(r"\w$", entry) else ""
+    return re.compile(start + r"\s+".join(re.escape(part) for part in entry.split()) + end, re.IGNORECASE)
+
+
+def _listed_in(text: str, data_file: str) -> list[str]:
+    """The entries of the data file that the text contains."""
+    text = text.replace("’", "'")  # a curly apostrophe matches the plain one in a data file
+    return [entry for entry in _data_lines(data_file) if _phrase_pattern(entry).search(text)]
+
+
+def _name_key(word: str) -> str:
+    """A word as compared: lower case, without a possessive ('s)."""
+    word = word.casefold()
+    return word[:-2] if word.endswith(("'s", "’s")) else word
+
+
+def _words_in(text: str) -> list[tuple[str, bool]]:
+    """(word, starts a sentence or line) for every word in the text."""
+    words = []
+    for match in _WORD.finditer(text):
+        before = text[: match.start()].rstrip(_SKIPPED_BEFORE_A_WORD)
+        words.append((match.group(), before == "" or before.endswith(("\n", ".", "!", "?"))))
+    return words
+
+
+def _numbers_in(text: str) -> list[tuple[str, float]]:
+    """(as written, value) for every number in the text, digits and number words alike, in reading order."""
+    found = [(m.start(), m.group(), float(re.sub("[" + _THOUSANDS_SEPARATORS + "]", "", m.group()))) for m in _NUMBER.finditer(text)]
+    found += [(m.start(), m.group(), float(NUMBER_WORDS[m.group().lower()])) for m in _NUMBER_WORD.finditer(text)]
+    return [(written, value) for _, written, value in sorted(found)]
+
+
+def _strings_and_numbers(value):
+    if isinstance(value, bool):
+        return
+    if isinstance(value, (str, int, float)):
+        yield value
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from _strings_and_numbers(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _strings_and_numbers(item)
+
+
+def known_from(facts: ProjectFacts, company_name: str) -> Known:
+    numbers, words = set(), {_name_key(w) for w in _data_lines("copy_name_allowlist.txt")}
+    for leaf in [*_strings_and_numbers(facts.model_dump()), company_name]:
+        if isinstance(leaf, str):
+            numbers.update(value for _, value in _numbers_in(leaf))
+            words.update(_name_key(word) for word, _ in _words_in(leaf))
+        else:
+            numbers.add(float(leaf))
+    return Known(frozenset(numbers), frozenset(words))
+
+
+def _unknown_numbers(text: str, known: Known) -> list[str]:
+    unknown = {}
+    for written, value in _numbers_in(text):
+        if value not in known.numbers:
+            unknown.setdefault(written, None)
+    return list(unknown)
+
+
+def _unknown_names(text: str, known: Known) -> list[str]:
+    """Capitalised words that are not the first word of a sentence and that nothing in the facts accounts for."""
+    unknown = {}
+    for word, starts_sentence in _words_in(text):
+        if word[0].isupper() and not starts_sentence and _name_key(word) not in known.words:
+            unknown.setdefault(_name_key(word), word)
+    return list(unknown.values())
+
+
+_HYPHENS = {"\u2010": "-", "\u2011": "-"}
+
+
+def max_words(char_budget: int) -> int:
+    """The word limit sent to the model for a slot: its char budget divided by CHARS_PER_WORD, rounded down."""
+    return char_budget // CHARS_PER_WORD
+
+
+def normalise_text(text: str) -> str:
+    """The text with typographic spaces (no-break, narrow, thin, em... any Unicode space separator) replaced by a plain
+    space and the hyphens U+2010 and U+2011 by "-". Quotes, apostrophes, dashes and newlines are kept."""
+    return "".join(
+        " " if unicodedata.category(char) == "Zs" else _HYPHENS.get(char, char) for char in text
+    )
+
+
+def trim_to_budget(text: str, char_budget: int, known: Known) -> str | None:
+    """The longest run of whole sentences (or whole lines) from the start of the text that passes every check, or None.
+
+    A sentence ends at . ! or ? followed by a space and a capital letter, so "sq. ft." and "No. 1" do not end one; a
+    line ends at a line break. Nothing is ever cut inside a sentence."""
+    text = text.strip()
+    cuts = [match.start() for match in _SENTENCE_BOUNDARY.finditer(text)]
+    for candidate in [text, *(text[:cut] for cut in reversed(cuts))]:
+        if candidate and not problems(candidate, char_budget, known):
+            return candidate
+    return None
+
+
+def fails_only_on_length(text: str, char_budget: int, known: Known) -> bool:
+    """True when the text is over the budget and nothing else is wrong with it: it can be shortened instead of rewritten."""
+    return bool(text.strip()) and len(text) > char_budget and not _content_problems(text, known)
+
+
+def _content_problems(text: str, known: Known) -> list[str]:
+    """Everything wrong with the text apart from its length."""
+    reasons = []
+    if unknown := _unknown_numbers(text, known):
+        reasons.append(f"not in the project facts: number {', '.join(unknown)}")
+    if unknown := _unknown_names(text, known):
+        reasons.append(f"capitalised but not a name in the project facts: {', '.join(unknown)} (use lower case for ordinary words)")
+    if money := _listed_in(text, "copy_money_words.txt"):
+        reasons.append(f"money or investment wording: {', '.join(money)}")
+    if banned := _listed_in(text, "copy_banned_phrases.txt"):
+        reasons.append(f"superlative or promise: {', '.join(banned)}")
+    return reasons
+
+
+def problems(text: str, char_budget: int, known: Known) -> list[str]:
+    """Why this text cannot be used for a slot with this budget; empty when it can."""
+    if not text.strip():
+        return ["the text is empty"]
+    reasons = []
+    if len(text) > char_budget:
+        target = int(char_budget * TARGET_SHARE_OF_BUDGET)  # a model cannot count characters: give it a length to aim for
+        reasons.append(f"{len(text)} characters, the limit is {char_budget}; shorten it to about {target} characters")
+    return reasons + _content_problems(text, known)

@@ -1,0 +1,30 @@
+# Money, price and investment wording. Copy that contains one of these (as a whole word, any case) is rejected.
+# One word per line. Blank lines and lines starting with # are ignored.
+# Brochure copy never states a price, a cost or what a buyer will earn.
+
+# currency
+₹
+Rs
+INR
+rupee
+rupees
+lakh
+lakhs
+crore
+crores
+
+# price and cost
+price
+prices
+priced
+pricing
+EMI
+
+# investment and returns
+returns
+investment
+investments
+invest
+investing
+investor
+investors

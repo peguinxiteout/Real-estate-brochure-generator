@@ -1,0 +1,38 @@
+# Capitalised words the copy may use inside a sentence without finding them in the project facts.
+# One word per line, any case. Blank lines and lines starting with # are ignored.
+# Keep this list short: every word here is a name the copy checker no longer questions.
+
+# months, written out or short
+january
+february
+march
+april
+may
+june
+july
+august
+september
+october
+november
+december
+jan
+feb
+mar
+apr
+jun
+jul
+aug
+sep
+sept
+oct
+nov
+dec
+
+# terms and units of the trade
+bhk
+rera
+no
+sq
+ft
+sqft
+km

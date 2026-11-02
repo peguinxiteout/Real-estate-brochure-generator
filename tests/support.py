@@ -80,3 +80,17 @@ def qa_issue(route_to, note="problem"):
     from brochure.contracts.qa import QAIssue
 
     return QAIssue(check="stub", page=1, severity="error", note=note, route_to=route_to)
+
+
+# Copy that passes every check for the sample project.
+GOOD_COPY = {
+    "cover_tagline": "Light, air and green space, a short walk from the metro.",
+    "overview_headline": "Homes designed around light and open space",
+    "overview_intro": "Aurelia Heights is a pair of residential towers in Pune with 2 and 3 BHK homes. The towers stand around a "
+    "landscaped podium garden, and the plans put living rooms and bedrooms on the sides with the most daylight. The metro "
+    "station, schools and a hospital are close by, so the daily routine stays short.",
+    "overview_highlights": "Two towers of 2 and 3 BHK homes\nLandscaped podium garden\nShort walk to the metro\nSchools and a hospital nearby",
+    "amenities_blurb": "From the infinity pool to the co-working lounge, every amenity is planned for daily use rather than for show.",
+    "plan_note": "Areas shown are carpet areas. Furniture in the plans is indicative only.",
+    "about_headline": "About Kestrel Urbanscapes",
+}

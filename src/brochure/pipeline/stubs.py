@@ -11,6 +11,7 @@ from brochure.contracts.state import PipelineState
 from brochure.pipeline.brief import brief_step
 from brochure.pipeline.agents import Agents, RenderResult
 from brochure.slots import SlotTemplate, load_slots
+from brochure.verbatim import verbatim_copy
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TEMPLATE_ID = "classic-8pp"
@@ -59,22 +60,7 @@ def stub_agents(data: SampleData | None = None, qa=None) -> Agents:
         return list(data.image_tags)
 
     def copywriter(state: PipelineState, llm) -> dict[str, str]:
-        facts, brand = state.project_facts, state.brand_kit
-        contact = brand.contact
-        lines = "\n".join
-        derived = {
-            "cover_rera_line": f"RERA No. {facts.rera_number}",
-            "rera_number": facts.rera_number,
-            "location_address": facts.location,
-            "location_landmarks": lines(f"{m.name}, {m.distance_km:g} km" for m in facts.landmarks),
-            "amenities_list": lines(facts.amenities),
-            "config_table": lines(f"{c.label}: {c.carpet_area_sqft:g} sq ft carpet" for c in facts.configurations),
-            "specs_list": lines(f"{x.category}: {x.detail}" for x in facts.specifications),
-            "about_text": brand.about_text,
-            "contact_block": lines(v for v in (contact.phone, contact.email, contact.website, contact.address) if v),
-            "disclaimer": brand.disclaimer,
-        }
-        return {**data.copy, **derived}
+        return {**data.copy, **verbatim_copy(state.project_facts, state.brand_kit)}
 
     def layout(state: PipelineState, llm) -> BrochureSpec:
         image_for_slot = {e.intended_slot: e.filename for e in data.manifest.images}
@@ -85,7 +71,7 @@ def stub_agents(data: SampleData | None = None, qa=None) -> Agents:
             if slot.id in image_for_slot:
                 fills[slot.page][slot.id] = SlotFill(image_path=image_for_slot[slot.id])
             if slot.type == "text":
-                fills[slot.page][slot.id] = SlotFill(text=state.slot_copy[slot.id])
+                fills[slot.page][slot.id] = SlotFill(text=state.slot_copy.get(slot.id, f"[copy needed: {slot.id}]"))  # visible, so a reviewer sees the gap
             if slot.id == "rera_number":  # a legal fact: it comes from the facts, not from the copy
                 fills[slot.page][slot.id] = SlotFill(text=state.project_facts.rera_number)
             if slot.type == "qr":

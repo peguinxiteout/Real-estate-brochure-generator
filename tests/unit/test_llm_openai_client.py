@@ -196,3 +196,92 @@ def test_the_factory_defaults_to_groq_and_a_production_model_with_strict_schemas
 def test_the_factory_without_an_api_key_says_which_variable_to_set(env):
     with pytest.raises(LLMError, match="LLM_API_KEY"):
         client_from_env(TASKS, env)
+
+
+def api_error(status: int, message="bad", type_="invalid_request_error", code="bad_request") -> httpx.Response:
+    return httpx.Response(status, json={"error": {"message": message, "type": type_, "code": code}})
+
+
+def error_of(response: httpx.Response) -> str:
+    with pytest.raises(LLMError) as raised:
+        make_client(Transport(response)).complete("brief.extract", {})
+    return str(raised.value)
+
+
+def test_a_400_error_carries_the_status_type_code_and_message_from_the_body():
+    text = error_of(api_error(400, "The JSON schema is invalid: 'default' is not allowed", "invalid_request_error", "invalid_json_schema"))
+    assert "400" in text
+    assert "invalid_request_error" in text
+    assert "invalid_json_schema" in text
+    assert "The JSON schema is invalid: 'default' is not allowed" in text
+
+
+def test_a_body_without_type_or_code_still_gives_the_status_and_message():
+    text = error_of(httpx.Response(400, json={"error": {"message": "model not found"}}))
+    assert "400" in text and "model not found" in text
+    assert "None" not in text
+
+
+def test_a_401_says_the_key_was_rejected_and_keeps_the_providers_message():
+    text = error_of(api_error(401, "Invalid API Key", "invalid_request_error", "invalid_api_key"))
+    assert "API key was rejected" in text
+    assert "401" in text and "invalid_api_key" in text and "Invalid API Key" in text
+
+
+def test_the_key_is_redacted_wherever_the_provider_echoes_it():
+    echoes = [
+        api_error(400, f"bad key {API_KEY} given"),
+        api_error(400, "bad", type_=API_KEY, code=API_KEY),
+        api_error(401, f"Invalid API Key: {API_KEY}"),
+        httpx.Response(502, text=f"<html>upstream saw {API_KEY}</html>"),
+    ]
+    for response in echoes:
+        text = error_of(response)
+        assert API_KEY not in text
+        assert str(response.status_code) in text
+
+
+def test_a_body_that_is_not_json_gives_the_status_and_a_short_raw_snippet():
+    text = error_of(httpx.Response(502, text="<html>\n<body>Bad   Gateway</body>\n</html>"))
+    assert "502" in text
+    assert "<html> <body>Bad Gateway</body> </html>" in text  # whitespace collapsed
+
+
+def test_the_providers_message_is_truncated_to_300_characters():
+    text = error_of(api_error(400, "x" * 5000))
+    assert "x" * 300 in text and "x" * 301 not in text
+    assert text.endswith("...") and len(text) < 500
+    raw = error_of(httpx.Response(502, text="y" * 5000))
+    assert "y" * 300 in raw and "y" * 301 not in raw
+
+
+def test_an_error_with_an_empty_body_is_just_the_status():
+    assert error_of(httpx.Response(500, json={})).endswith("HTTP 500")
+    assert error_of(httpx.Response(503, text="")).endswith("HTTP 503")
+
+
+# --- reasoning effort: a reasoning model spends its output budget thinking unless told to think less -------------------
+
+THINKING_TASKS = {"copy.write": TaskSpec(system="Write.", schema=SCHEMA, reasoning_effort="low"), "plain.task": TASKS["plain.task"]}
+
+
+def reasoning_body(model, task="copy.write"):
+    transport = Transport(completion('{"name": "x"}'))
+    client = OpenAICompatibleClient(
+        BASE_URL, API_KEY, model, THINKING_TASKS, http_client=httpx.Client(transport=httpx.MockTransport(transport))
+    )
+    client.complete(task, {})
+    return transport.body()
+
+
+def test_a_task_that_asks_for_low_reasoning_sends_reasoning_effort_to_a_gpt_oss_model():
+    assert reasoning_body("openai/gpt-oss-120b")["reasoning_effort"] == "low"
+    assert reasoning_body("openai/gpt-oss-20b")["reasoning_effort"] == "low"
+
+
+def test_a_task_that_does_not_ask_sends_no_reasoning_effort():
+    assert "reasoning_effort" not in reasoning_body("openai/gpt-oss-120b", task="plain.task")
+
+
+def test_reasoning_effort_is_not_sent_to_a_model_that_may_reject_it():
+    assert "reasoning_effort" not in reasoning_body("llama-3.3-70b-versatile")

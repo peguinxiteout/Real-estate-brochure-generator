@@ -22,20 +22,20 @@ Built (see [docs/CHANGELOG.md](docs/CHANGELOG.md) for the history):
 - Print rules: print config and DPI maths (section 7).
 - Slots format, loader and the `classic-8pp` template (section 8).
 - LLM interface with a `FakeLLM` for tests, and a real client for any OpenAI-compatible endpoint (Groq by default) (section 9).
-- The Brief agent is real: it fills empty form fields with facts the prompt states, using the LLM (section 3). The other agents are still stubs.
-- The pipeline graph (LangGraph), with pause and resume for missing fields and for human review (section 3). `stub_agents()` runs it with no LLM; `real_agents(llm)` swaps in the real Brief agent.
+- The Brief and Copywriter agents are real, using the LLM (section 3): Brief fills empty form fields with facts the prompt states; Copywriter writes the free-text slots, checked in code. The other agents are still stubs.
+- The pipeline graph (LangGraph), with pause and resume for missing fields and for human review (section 3). `stub_agents()` runs it with no LLM; `real_agents()` swaps in the real Brief and Copywriter agents, which use the client that `build_graph` is given.
 - A fictional sample project, "Aurelia Heights" (section 10).
 - `brochure doctor`: checks Python, WeasyPrint, Ghostscript and bundled fonts. It is the only CLI command.
 - CI on GitHub Actions: runs the unit tests on pushes to `feature/**` and `fix/**` and on pull requests into `master`.
 
 Not built:
 
-- Real agents other than Brief. Vision, Copywriter, Layout and the QA critic are stubs.
+- Real agents other than Brief and Copywriter. Vision, Layout and the QA critic are stubs.
 - The image tools. They are not in the graph yet.
 - The renderer (HTML to PDF, bleed, crop marks, CMYK). The stub returns fake file paths and creates no files.
 - Export. The stub does nothing.
 - An API and a frontend.
-- Checks of text length against `char_budget` and of images against the DPI rule inside a pipeline. The maths exists; nothing runs it yet.
+- Checks of images against the DPI rule inside a pipeline. The maths exists; nothing runs it yet. (Text length is checked, for the slots the Copywriter writes.)
 
 ## 3. How it will work
 
@@ -61,10 +61,10 @@ flowchart TD
 
 | Step | What it does | Today |
 |---|---|---|
-| 1. Brief agent | Turns the form and the prompt into `ProjectFacts`. Lists required fields that are missing in `missing_fields` so the user can be asked. | Real. `real_agents(llm)` runs the Brief agent (one LLM call) before the form-to-facts conversion and the question loop (bad answers are asked again). `stub_agents()` skips the LLM and uses the form only. |
+| 1. Brief agent | Turns the form and the prompt into `ProjectFacts`. Lists required fields that are missing in `missing_fields` so the user can be asked. | Real. `real_agents()` runs the Brief agent (one LLM call) before the form-to-facts conversion and the question loop (bad answers are asked again). `stub_agents()` skips the LLM and uses the form only. |
 | 2. Vision agent | Runs in parallel with step 1. Describes each photo as an `ImageTag` (kind, subject, quality, focal point). | Stub: returns the 12 sample image tags. |
 | 3. Image tools | Plain code, not an agent. For each image: crops it to its slot's aspect ratio around the focal point, fixes exposure, runs the DPI check, and upscales by at most 2x. Low-resolution images are flagged and limited to small slots. Planned, not built. | Not built, not in the graph. |
-| 4. Copywriter | Writes the text for each text slot, within its `char_budget`. | Stub: sample text, within each `char_budget`. |
+| 4. Copywriter | Writes the text for each text slot, within its `char_budget`. | Real. `real_agents()` runs the Copywriter agent (one LLM call, a second only for slots that fail a check) for the 7 free-text slots; code fills the other 11 text slots word for word. `stub_agents()` uses sample text. |
 | 5. Layout agent | Chooses which image and text goes in which slot and produces the `BrochureSpec`. Also applies the human's chat edits. | Stub: places the sample images and text in every slot. |
 | 6. Renderer | Fills the HTML/CSS template from the spec and produces the PDF and one PNG per page. | Stub: fake paths, no files. |
 | 7. QA critic | Looks at the pages and the spec and returns `QAIssue`s. Each issue says who should fix it (`route_to`). The loop stops after 3 rounds. | Stub: no issues unless scripted. The routing and the 3-round limit are real. |
@@ -160,6 +160,70 @@ The brief node saves the form the Brief agent returns into the run (`BriefOutcom
 on the merged form. Because the brief step runs again after the user answers, a run that asks a question makes two
 `brief.extract` calls.
 
+### The Copywriter agent
+
+`src/brochure/agents/copywriter.py`. `copywriter_agent(inputs, llm) -> dict[slot_id, str]` makes one `copy.write` call.
+The prompt is `src/brochure/agents/prompts/copy_write.md`; the reply schema is strict, with one required string
+property per owned slot (it says nothing about length; the code checks that). The model is sent only: the
+`ProjectFacts` (without the tone), the company name, each image's `kind`, `subject` and `features` (no paths), the tone notes,
+the owned slots (`id`, `page`, `char_budget`, `max_words`, `comment`) and, when the QA loop sent the run back, the QA issues routed to
+the copywriter. Facts are strict, wording is free.
+
+**Which slots it writes.** Text slots of `classic-8pp` are split in two. Code fills the verbatim slots word for word
+(`src/brochure/verbatim.py`); the Copywriter never sees or rewrites them, so legal and contact text is never reworded.
+
+| Written by the Copywriter (char budget) | Filled by code from the facts and the brand kit (char budget) |
+|---|---|
+| `cover_tagline` (90, 12 words), `overview_headline` (60, 8), `overview_intro` (600, 85), `overview_highlights` (240, 34), `amenities_blurb` (250, 35), `plan_note` (160, 22), `about_headline` (60, 8) | `cover_title` (40; the project name), `cover_rera_line` (60), `rera_number` (60), `location_address` (120), `location_landmarks` (400), `amenities_list` (300), `config_table` (400), `specs_list` (700), `about_text` (450), `contact_block` (200), `disclaimer` (500) |
+
+The pipeline step (`pipeline/real.py`) returns the verbatim slots plus whatever the Copywriter wrote as `slot_copy`.
+
+**Checks, per slot, in code** (`src/brochure/agents/copy_checks.py`). Each failure gives a short reason:
+
+- Budget: not empty, and `len(text) <= char_budget`. A model cannot count characters, so each slot is also sent a
+  `max_words` (the char budget divided by `CHARS_PER_WORD = 7`, rounded down, in `copy_checks.py`), and the reason for
+  a long text names a length to aim for (85% of the budget).
+- Numbers: every number (digits, `1,090`, decimals, and number words from one to twenty) must equal a number found
+  anywhere in the `ProjectFacts`, including inside strings such as "2 BHK" or "Dec 2028". A thousands group split by a
+  non-breaking space counts as one number.
+- Names: every capitalised word that does not start a sentence or a line must appear (any case) in the facts, in the
+  brand kit's `company_name`, or in the allow-list. This also rejects headlines in Title Case.
+- Text is normalised first, in the checks and in the returned copy: any Unicode space separator (U+202F, U+00A0,
+  U+2009, ...) becomes a plain space, and U+2010 and U+2011 become `-`. Curly quotes and apostrophes are kept.
+- Money: currency symbols and words (`copy_money_words.txt`), as whole words.
+- Superlatives, promises and location clichés ("prime location", "minutes from", "walking distance", "stone's throw"):
+  `copy_banned_phrases.txt`, as whole words or phrases ("bestow" is fine).
+
+The three lists are data files in `src/brochure/agents/data/` (`copy_name_allowlist.txt`, `copy_money_words.txt`,
+`copy_banned_phrases.txt`): one entry per line, `#` comments, shipped with the package.
+
+**Retry and fallback.** If any slot fails, the model is asked once more with only the failing slots. A slot that fails
+only on length is *edited*, not rewritten: the retry sends its previous text (`shorten`) and asks for it shortened by
+cutting words or sentences. Any other failure (a number, a name, money, a banned phrase, an empty text) is written again
+with its reasons (`problems`). Slots that passed keep their first text whatever the second reply says.
+
+**Trim.** A slot still failing after the retry is trimmed in code: the longest run of whole sentences (or whole lines)
+from the start that fits the budget and passes every check is kept, and an info line says so. Nothing is cut inside a
+sentence ("sq. ft." does not end one). Headlines, taglines and titles (ids ending `_headline`, `_tagline`, `_title`) are
+never trimmed. If nothing fits, the slot is left out of the result and one warning lists it with its reasons.
+
+**Bad replies and client errors.** A reply that is not valid JSON (`LLMBadReply`) is asked for once more with the error, as the Brief agent does; a second
+one falls back like any other client error. A client error (`LLMRateLimited`, `LLMError`, or that second bad reply)
+stops the asking, keeps what already passed and logs one warning with the cause. The run never crashes on the model.
+
+**Wording rules that only the prompt enforces.** Only a render is an "artist's impression"; a photo is a photograph and a
+floor plan or a map is never called one. Each `overview_highlights` line states a fact from the project (a
+configuration, the location, the possession date, an amenity or a landmark), not a picture. `overview_intro` is a short
+summary that does not list every landmark, configuration or specification. No code check looks for
+either, so the live test reads the copy (it asserts only that `plan_note` does not say "artist").
+
+**Missing copy.** The layout stub puts the visible text `[copy needed: <slot_id>]` in any text slot with no copy, so the
+reviewer sees the gap (the QA critic will later flag these placeholders).
+
+**What the checks cannot see.** Numbers, names, money and superlatives are checked in code. A made-up description with
+none of those ("a gym with floor-to-ceiling windows") passes; the prompt forbids it, and only a later reviewer or QA
+critic can catch it. The brief's free-text prompt is not sent to the Copywriter.
+
 Run the pipeline tests. They use the in-memory checkpointer and a temporary SQLite file, and they fail if anything
 opens a network connection or calls the `FakeLLM`:
 
@@ -182,7 +246,8 @@ src/brochure/
   slots.py                    load slots.json, compute min_px
   contracts/                  Pydantic models and the schema export
   llm/                        LLMClient, FakeLLM, OpenAICompatibleClient, Agent protocol
-  agents/                     real agents (Brief) and their prompt files
+  verbatim.py                 the text slots code fills word for word (RERA, contact, lists, about text, disclaimer)
+  agents/                     real agents (Brief, Copywriter), their prompt files, the copy checks and their data files
   pipeline/                   LangGraph graph, stub agents, real_agents, checkpointers
 templates/classic-8pp/        slots.json for the 8-page template (no HTML/CSS yet)
 tests/unit/                   fast tests, no network
@@ -346,11 +411,14 @@ and the slot's comment says so.
   validates it. HTTP 429 is retried (3 attempts in all, waiting for `Retry-After`, else 1 s then 2 s, at most 60 s),
   then `LLMRateLimited` is raised. Other HTTP errors, timeouts and connection failures raise `LLMError`; a reply that
   is not a JSON object raises `LLMBadReply` (an `LLMError`). The API key is never put in an error message or a log.
+  A task can ask for `reasoning_effort` (`TaskSpec.reasoning_effort`); it is sent only to `openai/gpt-oss-*` models.
+  The copy task asks for `low`: at the default, gpt-oss can spend its whole output budget thinking and Groq answers
+  HTTP 400 `json_validate_failed`.
   `images=` raises `NotImplementedError` for now.
 - `FakeLLM`: returns canned responses keyed by task, records every call (`llm.calls`), and raises
   `MissingCannedResponse` naming the task when it has no answer.
 - `Agent[I, O]`: a typing-only protocol. An agent is a function `(inputs, llm) -> schema object`. The stub agents are in
-  `src/brochure/pipeline/stubs.py`; the one real agent is the Brief agent in `src/brochure/agents/brief.py`.
+  `src/brochure/pipeline/stubs.py`; the real agents are Brief (`src/brochure/agents/brief.py`) and Copywriter (`src/brochure/agents/copywriter.py`).
 
 Unit tests never touch the network. Anything that would call a model uses `FakeLLM` (or the real client over a fake
 HTTP transport). The `llm` pytest marker is for tests that call a real model; CI excludes it.
@@ -376,7 +444,7 @@ from brochure.agents import llm_from_env
 from brochure.pipeline import build_graph, memory_checkpointer, real_agents
 
 llm = llm_from_env()
-graph = build_graph(real_agents(llm), memory_checkpointer(), llm)
+graph = build_graph(real_agents(), memory_checkpointer(), llm)  # every real step uses this one llm
 ```
 
 The supported way to run the code and the tests is the WSL virtualenv from [CONTRIBUTING.md](CONTRIBUTING.md#setup-wsl-ubuntu)
@@ -393,6 +461,11 @@ Without `LLM_API_KEY` it skips with that reason. With a key it passes only if th
 fall back to the form, the RERA number, possession date and both configurations the prompt states were filled, the
 location (which the prompt never mentions) is still empty, and every filled value is in the prompt. It prints which
 fields the model filled and how many calls were made, never the key.
+
+The Copywriter has its own live test, `tests/llm/test_copy_live.py` (the sample project, the real client). It passes only
+if every one of the 7 owned slots is filled, every code check passes, no fallback warning was logged and there were
+at most four calls. It prints each slot with its length and budget, whether it was trimmed, and the call count, never the key. Groq's free tier
+allows 8000 tokens a minute for `openai/gpt-oss-120b`; one copy call is 2500 to 3000, so wait a few seconds between runs.
 
 This example was run from the repo root:
 
@@ -490,6 +563,9 @@ Full rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
 - The stub pipeline is hard-wired to `classic-8pp` and the sample files.
 - The Brief agent was written against Groq's documentation and tested with fakes. The live test has to be run with a key to confirm the provider accepts the schema.
 - The image tools are not in the graph.
+- The Copywriter's prompt cannot make a model count characters; a long slot is fixed by the retry, and a slot that fails twice shows `[copy needed: ...]`.
+- The copy keeps curly quotes and apostrophes and en and em dashes; check that the fonts have those glyphs when the renderer exists. Typographic spaces and hyphens are normalised to plain ones.
+- The Copywriter does not see the brief's free-text prompt, so the user's emphasis (for example "the short walk to the station") does not reach the copy.
 - `brochure doctor` fails the fonts check because `assets/fonts` (Playfair Display, Inter) is not in the repo.
 - `jinja2`, `qrcode` and `pypdf` are declared in `pyproject.toml` but nothing in the code uses them yet. WeasyPrint
   is only used by the doctor.

@@ -251,4 +251,27 @@ def test_llm_from_env_builds_a_client_that_knows_the_agents_tasks():
     from brochure.agents import llm_from_env
 
     client = llm_from_env({"LLM_API_KEY": "k"})
-    assert set(client.tasks) == {"brief.extract"}
+    assert set(client.tasks) == {"brief.extract", "copy.write"}
+
+
+def test_the_fallback_warning_carries_the_providers_error_details_and_never_the_key(caplog):
+    import httpx
+
+    from brochure.agents import TASKS
+    from brochure.llm import OpenAICompatibleClient
+
+    key = "gsk_live_SECRET_abc123"
+    body = {"error": {"message": f"schema rejected for key {key}", "type": "invalid_request_error", "code": "invalid_json_schema"}}
+    client = OpenAICompatibleClient(
+        "https://llm.example.test/v1", key, "openai/gpt-oss-120b", TASKS,
+        http_client=httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(400, json=body))),
+    )
+    caplog.set_level("DEBUG")
+    brief = sparse()
+    assert brief_agent(brief, client) == brief.form
+
+    warning = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warning) == 1
+    for detail in ["400", "invalid_request_error", "invalid_json_schema", "schema rejected"]:
+        assert detail in warning[0]
+    assert key not in caplog.text
