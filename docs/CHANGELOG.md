@@ -2,6 +2,21 @@
 
 Newest entry first.
 
+## 2026-11-02: Copywriter agent
+
+The Copywriter step now uses an LLM to write the free-text slots from the project facts. Vision, Layout, the renderer, QA and export are still stubs.
+
+- `src/brochure/agents/copywriter.py` and `prompts/copy_write.md`: `copywriter_agent(inputs, llm) -> dict[slot_id, str]`. One `copy.write` call with a strict schema (one required string per owned slot). It is sent the facts, the company name, each image's subject and features (no paths), the tone, the owned slots and any QA issues routed to the copywriter.
+- Owned slots (8): `cover_title`, `cover_tagline`, `overview_headline`, `overview_intro`, `overview_highlights`, `amenities_blurb`, `plan_note`, `about_headline`. Filled by code word for word (10, `src/brochure/verbatim.py`, moved out of the copywriter stub): `cover_rera_line`, `rera_number`, `location_address`, `location_landmarks`, `amenities_list`, `config_table`, `specs_list`, `about_text`, `contact_block`, `disclaimer`.
+- `src/brochure/agents/copy_checks.py`: per slot, not empty and within `char_budget`; every number (digits or number words one to twenty) is a number in the facts; every capitalised word that does not start a sentence is in the facts, the company name or the allow-list; no money words; no banned superlatives or promises. The three lists are data files in `src/brochure/agents/data/` (`copy_name_allowlist.txt`, `copy_money_words.txt`, `copy_banned_phrases.txt`).
+- Retry and fallback: a failing slot is asked for again once, alone, with its reasons; passing slots keep their first text. Slots that still fail are left out with one warning; a client error stops the asking and never raises.
+- Layout stub: a text slot with no copy now gets the visible text `[copy needed: <slot_id>]` instead of raising `KeyError`.
+- `real_agents()` no longer takes a client. Every real step uses the `llm` that `build_graph` hands it, so one run has one client. The copywriter step returns the verbatim slots plus the written ones, and passes along only the QA issues routed to `copywriter`. The graph itself is unchanged.
+- LLM client: a task can ask for `reasoning_effort` (`TaskSpec.reasoning_effort`), sent only to `openai/gpt-oss-*` models. The copy task asks for `low`; found by the live run, where the default made Groq answer HTTP 400 `json_validate_failed` because the model spent its output budget thinking.
+- Prompt and reasons shaped by the live run: headlines in sentence case (Title Case words are rejected as names), no invented views or travel times, aim for 85% of a budget (the reason for an over-budget slot gives that length), a thousands group split by a no-break space is one number.
+- Live test `tests/llm/test_copy_live.py` (marker `llm`, skips without `LLM_API_KEY`). No new dependency, no contract change.
+- Not caught by any check: descriptive invention with no number, name or money in it. The brief's free-text prompt is not sent to the copywriter.
+
 ## 2026-11-01: Brief agent on Groq
 
 The Brief step now uses an LLM to fill empty form fields with facts the prompt states. The other agents are still stubs.
