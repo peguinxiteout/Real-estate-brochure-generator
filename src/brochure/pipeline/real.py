@@ -19,6 +19,6 @@ def real_brief_step(state: PipelineState, llm: LLMClient) -> BriefOutcome:
     return BriefOutcome(project_facts=ProjectFacts.model_validate(form.model_dump()), missing_fields=[], form=form)
 
 
-def real_agents(llm: LLMClient, data: SampleData | None = None, qa=None) -> Agents:
-    """Real Brief agent (bound to `llm`) and the stubs for every other step."""
-    return replace(stub_agents(data, qa), brief=lambda state, _graph_llm: real_brief_step(state, llm))
+def real_agents(data: SampleData | None = None, qa=None) -> Agents:
+    """Real Brief agent and the stubs for every other step. Each real step uses the llm that `build_graph` hands it."""
+    return replace(stub_agents(data, qa), brief=real_brief_step)

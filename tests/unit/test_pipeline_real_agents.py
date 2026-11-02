@@ -27,7 +27,7 @@ def no_network(monkeypatch):
 
 def sparse_run(canned=CANNED):
     llm = FakeLLM({"brief.extract": canned})
-    return Run(real_agents(llm), llm=llm), llm
+    return Run(real_agents(), llm=llm), llm
 
 
 def test_what_the_prompt_states_is_filled_and_only_the_unmentioned_field_is_asked():
@@ -69,7 +69,7 @@ def test_when_the_model_fails_the_run_asks_for_everything_the_form_lacks_as_befo
         def complete(self, task, payload, images=None):
             raise LLMRateLimited("rate limit still hit")
 
-    run = Run(real_agents(Failing()))
+    run = Run(real_agents(), llm=Failing())
     run.start(sample_state(briefed=False, brief_file="brief_sparse.json"))
     assert run.paused_at == ("ask_user",)
     assert run.interrupt_value["missing_fields"] == ["rera_number", "location", "possession"]
@@ -85,3 +85,12 @@ def test_every_other_step_is_still_a_stub_so_the_run_ends_after_approval():
     run.resume("approved")
     assert run.paused_at == ()
     assert run.state.approval_status == "approved"
+
+
+def test_the_real_steps_use_the_llm_the_graph_hands_them_and_real_agents_takes_none():
+    import inspect
+
+    assert "llm" not in inspect.signature(real_agents).parameters
+    run, llm = sparse_run()
+    run.start(sample_state(briefed=False, brief_file="brief_sparse.json"))
+    assert [c.task for c in llm.calls] == ["brief.extract"]
