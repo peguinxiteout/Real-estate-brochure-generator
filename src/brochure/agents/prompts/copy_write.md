@@ -5,8 +5,9 @@ You receive a JSON object with:
 - "company_name": the developer.
 - "images": the project's images, each with its "kind" (photo, render, floor_plan or map), its subject and its features, so the copy can refer to them.
 - "tone_notes": the tone to write in. It may be empty.
-- "slots": the text slots to write. Each has "id", "page", "char_budget" (the most characters the text may have, spaces included) and sometimes a "comment" about the slot.
+- "slots": the text slots to write. Each has "id", "page", "max_words" (the most words the text may have), "char_budget" (the most characters, spaces included) and sometimes a "comment" about the slot.
 - "problems" (only sometimes): slot ids, each with why your last text for that slot was rejected. Write those slots again and fix exactly that. For every other slot in your reply, give an empty string.
+- "shorten" (only sometimes): slot ids, each with "previous_text" (your last text for that slot, which was too long) and "problem". Do not rewrite it. Return "previous_text" shortened by cutting words or whole sentences; keep the facts and the wording of what remains, and add nothing new. It must end up clearly under "max_words".
 - "previous_error" (only sometimes): your last reply was not valid JSON. Answer again with a valid JSON object.
 - "qa_issues" (only sometimes): problems the reviewer found in the brochure that the copy should fix, each with "page" and "note".
 
@@ -21,7 +22,7 @@ Rules:
 6. No prices, money or investment language: no price, cost, rupee amounts, EMI, returns, investment or appreciation.
 7. Units as given (sq ft, km). Do not convert them.
 8. No superlatives or promises: no "best", "No. 1", "largest", "finest", "guaranteed", "award-winning", "world-class" or "unmatched".
-9. Stay within each slot's "char_budget". It is a hard limit and you cannot count characters exactly, so aim for about 85% of it and never write a text that fills the whole budget.
+9. Stay under each slot's "max_words": count your words. "char_budget" is the hard limit in characters and you cannot count characters exactly, so aim for about 85% of "max_words" and never write a text that fills the whole budget.
 10. Describe each image by its "kind". Only a render is an artist's impression: if your copy refers to how the project will look in a render, say so. A photo is a photograph. A floor_plan is a plan and a map is a map: never call a floor plan or a map an artist's impression.
 11. Do not write the RERA number, contact details or legal text. Those slots are filled elsewhere.
 12. "overview_highlights": each line states one fact taken from "project": a configuration with its carpet area, the location, the possession date, an amenity or a landmark with its distance. A line never describes a picture or an image.

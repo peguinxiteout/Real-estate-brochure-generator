@@ -94,7 +94,8 @@ def test_the_payload_has_the_facts_the_images_the_tone_and_only_the_owned_slots(
     assert payload["company_name"] == "Kestrel Urbanscapes"
     assert payload["tone_notes"] == state.project_facts.tone_notes
     assert payload["slots"] == [
-        {"id": s.id, "page": s.page, "char_budget": s.char_budget, "comment": s.comment} for s in owned_slots(TEMPLATE)
+        {"id": s.id, "page": s.page, "char_budget": s.char_budget, "max_words": s.char_budget // 7, "comment": s.comment}
+        for s in owned_slots(TEMPLATE)
     ]
     assert {s["id"] for s in payload["slots"]}.isdisjoint(VERBATIM_SLOTS)
 
@@ -174,10 +175,11 @@ def test_the_second_call_sends_only_the_failing_slots_with_the_reason_for_each_a
     first, second = llm.calls[0][1], llm.calls[1][1]
     assert "problems" not in first
     assert [s["id"] for s in second["slots"]] == ["cover_tagline", "plan_note"]
-    assert set(second["problems"]) == {"cover_tagline", "plan_note"}
-    assert "91" in second["problems"]["cover_tagline"] and "90" in second["problems"]["cover_tagline"]
+    assert set(second["problems"]) == {"plan_note"}  # wrong in content: written again with the reason
     assert "empty" in second["problems"]["plan_note"]
-    assert {k: v for k, v in second.items() if k not in ("slots", "problems")} == {k: v for k, v in first.items() if k != "slots"}
+    assert set(second["shorten"]) == {"cover_tagline"}  # only too long: edited, with its previous text
+    assert "91" in second["shorten"]["cover_tagline"]["problem"] and "90" in second["shorten"]["cover_tagline"]["problem"]
+    assert {k: v for k, v in second.items() if k not in ("slots", "problems", "shorten")} == {k: v for k, v in first.items() if k != "slots"}
 
 
 def test_slots_that_passed_the_first_time_are_kept_whatever_the_second_reply_says_about_them():
@@ -390,12 +392,12 @@ def test_a_second_bad_reply_falls_back_like_any_other_error_with_one_warning(cap
     assert "still not JSON" in message and all(slot_id in message for slot_id in OWNED)
 
 
-def test_a_bad_reply_to_the_second_attempt_is_also_asked_again_and_keeps_the_problems_list():
+def test_a_bad_reply_to_the_second_attempt_is_also_asked_again_and_keeps_the_shorten_list():
     copy, llm = play({**GOOD, "cover_tagline": TOO_LONG}, BAD, GOOD)
     assert len(llm.calls) == 3
     assert copy == GOOD
     second, third = llm.calls[1][1], llm.calls[2][1]
-    assert third["problems"] == second["problems"] and "previous_error" in third
+    assert third["shorten"] == second["shorten"] and "previous_error" in third
     assert [s["id"] for s in third["slots"]] == ["cover_tagline"]
 
 
@@ -415,3 +417,131 @@ def test_only_a_bad_reply_is_asked_again_a_rate_limit_or_http_error_is_not():
 
 def test_the_prompt_explains_previous_error():
     assert "previous_error" in PROMPT_FILE.read_text(encoding="utf-8")
+
+
+# --- word limits in the payload -------------------------------------------------------------------------------------------
+
+MAX_WORDS = {"cover_tagline": 12, "overview_headline": 8, "overview_intro": 85, "overview_highlights": 34,
+             "amenities_blurb": 35, "plan_note": 22, "about_headline": 8}
+
+
+def test_each_slot_is_sent_with_max_words_derived_from_its_char_budget():
+    from brochure.agents.copy_checks import max_words
+
+    _, llm = run()
+    slots = first_payload(llm)["slots"]
+    assert {s["id"]: s["max_words"] for s in slots} == MAX_WORDS
+    assert all(s["max_words"] == max_words(s["char_budget"]) for s in slots)
+    assert all(set(s) == {"id", "page", "char_budget", "max_words", "comment"} for s in slots)
+
+
+def test_the_prompt_tells_the_model_to_stay_under_max_words():
+    prompt = PROMPT_FILE.read_text(encoding="utf-8")
+    rule = next(line for line in prompt.splitlines() if line.startswith("9."))
+    assert "max_words" in rule and "char_budget" in rule
+
+
+# --- a slot that is only too long is edited, not rewritten --------------------------------------------------------------------
+
+SENTENCE = "The towers stand around a landscaped podium garden."
+
+
+def long_intro(extra: int) -> str:
+    return GOOD["overview_intro"] + (" " + SENTENCE) * extra
+
+
+def test_a_slot_that_fails_only_on_length_is_sent_back_with_its_previous_text_to_shorten():
+    _, llm = play({**GOOD, "cover_tagline": TOO_LONG}, GOOD)
+    second = llm.calls[1][1]
+    assert second["shorten"] == {"cover_tagline": {"previous_text": TOO_LONG, "problem": second["shorten"]["cover_tagline"]["problem"]}}
+    assert "91 characters" in second["shorten"]["cover_tagline"]["problem"]
+    assert "problems" not in second
+    assert [s["id"] for s in second["slots"]] == ["cover_tagline"]
+
+
+def test_a_slot_that_is_wrong_in_content_as_well_as_too_long_gets_the_full_retry_not_the_edit():
+    wrong = "Near Zorbaville " + "a" * 100
+    _, llm = play({**GOOD, "cover_tagline": wrong}, GOOD)
+    second = llm.calls[1][1]
+    assert "shorten" not in second
+    assert "Zorbaville" in second["problems"]["cover_tagline"] and "characters" in second["problems"]["cover_tagline"]
+
+
+def test_length_and_content_failures_in_one_reply_are_split_between_shorten_and_problems():
+    _, llm = play({**GOOD, "cover_tagline": TOO_LONG, "plan_note": "The best homes"}, GOOD)
+    second = llm.calls[1][1]
+    assert set(second["shorten"]) == {"cover_tagline"}
+    assert set(second["problems"]) == {"plan_note"}
+    assert [s["id"] for s in second["slots"]] == ["cover_tagline", "plan_note"]
+
+
+def test_the_shortened_text_from_the_second_reply_is_used():
+    copy, _ = play({**GOOD, "cover_tagline": TOO_LONG}, {**GOOD, "cover_tagline": "Light and air at Aurelia Heights."})
+    assert copy["cover_tagline"] == "Light and air at Aurelia Heights."
+
+
+def test_the_prompt_explains_shorten():
+    prompt = PROMPT_FILE.read_text(encoding="utf-8")
+    assert '"shorten"' in prompt and "previous_text" in prompt and "cutting" in prompt
+
+
+# --- the safety net: trim to whole sentences ------------------------------------------------------------------------------------
+
+def expected_trim(extra_available: int) -> str:
+    text = GOOD["overview_intro"]
+    while len(text + " " + SENTENCE) <= OWNED["overview_intro"] and extra_available > 0:
+        text, extra_available = text + " " + SENTENCE, extra_available - 1
+    return text
+
+
+def test_a_slot_still_over_budget_after_the_retry_is_trimmed_to_whole_sentences_that_fit(caplog):
+    caplog.set_level(logging.INFO, logger="brochure.agents.copywriter")
+    copy, llm = play({**GOOD, "overview_intro": long_intro(8)}, {**GOOD, "overview_intro": long_intro(12)})
+    trimmed = copy["overview_intro"]
+    assert len(llm.calls) == 2
+    assert trimmed == expected_trim(12) and len(trimmed) <= 600 < len(trimmed + " " + SENTENCE)
+    assert trimmed.endswith(".")
+    assert warnings(caplog) == []
+    assert any("trimmed slot overview_intro" in r.getMessage() and r.levelno == logging.INFO for r in caplog.records)
+
+
+def test_a_trimmed_text_is_checked_again_so_a_bad_sentence_is_not_kept(caplog):
+    bad = long_intro(0) + " It stands near Zorbaville." + (" " + SENTENCE) * 12
+    copy, _ = play({**GOOD, "overview_intro": bad}, {**GOOD, "overview_intro": bad})
+    assert copy["overview_intro"] == GOOD["overview_intro"]  # everything from the bad sentence on is cut
+    assert warnings(caplog) == []
+
+
+def test_a_headline_slot_is_never_trimmed_and_is_left_out_with_the_warning(caplog):
+    two_sentences = "Calm homes by the park. " + "A" * 80
+    for slot_id in ("cover_tagline", "overview_headline", "about_headline"):
+        caplog.clear()
+        reply = {**GOOD, slot_id: two_sentences}
+        copy, _ = play(reply, reply)
+        assert slot_id not in copy
+        (message,) = warnings(caplog)
+        assert slot_id in message
+
+
+def test_a_slot_where_not_even_the_first_sentence_fits_is_left_out_with_the_warning(caplog):
+    one_long_sentence = "Aurelia Heights " + "has homes " * 70 + "for families."
+    copy, _ = play({**GOOD, "overview_intro": one_long_sentence}, {**GOOD, "overview_intro": one_long_sentence})
+    assert "overview_intro" not in copy
+    (message,) = warnings(caplog)
+    assert "overview_intro" in message
+
+
+def test_when_the_second_call_fails_the_first_texts_that_can_be_trimmed_are_trimmed(caplog):
+    copy, llm = play({**GOOD, "overview_intro": long_intro(12), "cover_tagline": TOO_LONG}, LLMRateLimited("rate limit"))
+    assert copy["overview_intro"] == expected_trim(12)
+    assert "cover_tagline" not in copy
+    (message,) = warnings(caplog)
+    assert "cover_tagline" in message and "overview_intro" not in message and "rate limit" in message
+
+
+def test_the_single_line_slots_are_the_headlines_taglines_and_titles():
+    from brochure.agents.copywriter import is_single_line
+
+    ids = {s.id: is_single_line(s) for s in owned_slots(TEMPLATE)}
+    assert ids == {"cover_tagline": True, "overview_headline": True, "about_headline": True, "overview_intro": False,
+                   "overview_highlights": False, "amenities_blurb": False, "plan_note": False}

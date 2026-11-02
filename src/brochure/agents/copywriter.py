@@ -3,7 +3,9 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from brochure.agents.copy_checks import Known, known_from, normalise_text, problems
+from brochure.agents.copy_checks import (
+    Known, fails_only_on_length, known_from, max_words, normalise_text, problems, trim_to_budget,
+)
 from brochure.contracts.images import ImageTag
 from brochure.contracts.project import ProjectFacts
 from brochure.contracts.qa import QAIssue
@@ -56,7 +58,10 @@ def _payload(inputs: CopyInputs, slots: list[ResolvedSlot]) -> dict:
         "company_name": inputs.company_name,
         "images": [{"kind": tag.kind, "subject": tag.subject, "features": tag.features} for tag in inputs.image_tags],
         "tone_notes": inputs.facts.tone_notes,
-        "slots": [{"id": s.id, "page": s.page, "char_budget": s.char_budget, "comment": s.comment} for s in slots],
+        "slots": [
+            {"id": s.id, "page": s.page, "char_budget": s.char_budget, "max_words": max_words(s.char_budget), "comment": s.comment}
+            for s in slots
+        ],
     }
     if inputs.qa_issues:  # only when the QA loop sent the run back
         payload["qa_issues"] = [{"page": i.page, "check": i.check, "note": i.note} for i in inputs.qa_issues]
@@ -72,26 +77,53 @@ def _ask(llm: LLMClient, payload: dict) -> dict:
         return llm.complete(TASK, {**payload, "previous_error": str(error)})
 
 
-def _judge(reply: dict, slots: list[ResolvedSlot], known: Known) -> tuple[dict[str, str], dict[str, list[str]]]:
-    """Split a reply into the slots whose text passed every check (id -> text) and those that did not (id -> reasons)."""
+@dataclass(frozen=True)
+class _Failure:
+    reasons: list[str]
+    text: str | None = None  # what the model wrote, normalised, when it wrote a string
+    length_only: bool = False  # too long and nothing else wrong: it can be edited down instead of rewritten
+
+
+SINGLE_LINE_SUFFIXES = ("_headline", "_tagline", "_title")
+
+
+def is_single_line(slot: ResolvedSlot) -> bool:
+    """A headline, tagline or title: one line, never trimmed by sentences."""
+    return slot.id.endswith(SINGLE_LINE_SUFFIXES)
+
+
+def _judge(reply: dict, slots: list[ResolvedSlot], known: Known) -> tuple[dict[str, str], dict[str, _Failure]]:
+    """Split a reply into the slots whose text passed every check (id -> text) and those that did not."""
     passed, failed = {}, {}
     for slot in slots:
         value = reply.get(slot.id)
         if not isinstance(value, str):
-            failed[slot.id] = ["the reply has no text for this slot"]
+            failed[slot.id] = _Failure(["the reply has no text for this slot"])
             continue
         text = normalise_text(value).strip()
         if reasons := problems(text, slot.char_budget, known):
-            failed[slot.id] = reasons
+            failed[slot.id] = _Failure(reasons, text, fails_only_on_length(text, slot.char_budget, known))
         else:
             passed[slot.id] = text
     return passed, failed
 
 
+def _retry_payload(payload: dict, failed: dict[str, _Failure]) -> dict:
+    """The payload for asking again: a slot that is only too long is sent back to be shortened, any other failure to be
+    written again with its reasons."""
+    shorten = {
+        slot_id: {"previous_text": f.text, "problem": "; ".join(f.reasons)} for slot_id, f in failed.items() if f.length_only
+    }
+    problems_ = {slot_id: "; ".join(f.reasons) for slot_id, f in failed.items() if not f.length_only}
+    return {**payload, **({"shorten": shorten} if shorten else {}), **({"problems": problems_} if problems_ else {})}
+
+
 def copywriter_agent(inputs: CopyInputs, llm: LLMClient) -> dict[str, str]:
     """slot id -> text for the slots whose copy passed every check; a slot that could not be written is left out.
 
-    A failing slot is asked for again once, alone, with the reasons; the slots that passed keep their first text.
+    A failing slot is asked for again once, alone: a slot that is only too long is sent back to be shortened, any other
+    gets its reasons. The slots that passed keep their first text. A slot still failing at the end is trimmed to whole
+    sentences if it is not a headline and the trimmed text passes every check, otherwise it is left out.
     """
     known = known_from(inputs.facts, inputs.company_name)
     written: dict[str, str] = {}
@@ -99,7 +131,7 @@ def copywriter_agent(inputs: CopyInputs, llm: LLMClient) -> dict[str, str]:
     for attempt in (1, 2):
         payload = _payload(inputs, pending)
         if failed:
-            payload["problems"] = {slot_id: "; ".join(reasons) for slot_id, reasons in failed.items()}
+            payload = _retry_payload(payload, failed)
         try:
             reply = _ask(llm, payload)
         except LLMError as exc:  # the client has already retried what it can: do not ask again
@@ -110,9 +142,20 @@ def copywriter_agent(inputs: CopyInputs, llm: LLMClient) -> dict[str, str]:
         pending = [slot for slot in pending if slot.id in failed]
         if not pending:
             break
-        logger.info("asking again for %s: %s", ", ".join(failed), failed)
+        logger.info("asking again for %s: %s", ", ".join(failed), {k: v.reasons for k, v in failed.items()})
+    for slot in list(pending):
+        failure = failed.get(slot.id)
+        if failure and failure.text and not is_single_line(slot):
+            if trimmed := trim_to_budget(failure.text, slot.char_budget, known):
+                logger.info(
+                    "trimmed slot %s from %d to %d characters at a sentence boundary", slot.id, len(failure.text), len(trimmed)
+                )
+                written[slot.id] = trimmed
+                pending.remove(slot)
     if pending:
-        details = "; ".join(f"{slot.id} ({'; '.join(failed.get(slot.id, ['no reply']))})" for slot in pending)
+        details = "; ".join(
+            f"{slot.id} ({'; '.join(failed[slot.id].reasons) if slot.id in failed else 'no reply'})" for slot in pending
+        )
         cause = f"; the model could not be used: {error}" if error else ""
         logger.warning("the Copywriter left %d slot(s) without copy: %s%s", len(pending), details, cause)
     return {slot.id: written[slot.id] for slot in inputs.slots if slot.id in written}
