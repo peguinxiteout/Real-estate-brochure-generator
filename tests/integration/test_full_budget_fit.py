@@ -1,7 +1,6 @@
 """Every text slot's height fits its full char_budget: filler of exactly char_budget characters, rendered with the real
 fonts and template and measured with the same marks as the overflow check."""
 import importlib
-import math
 from pathlib import Path
 
 import pytest
@@ -9,7 +8,7 @@ import pytest
 from brochure.contracts.spec import BrochureSpec, PageSpec, SlotFill
 from brochure.pipeline.stubs import load_sample_data
 from brochure.print_config import PRINT
-from brochure.render.html import PX_PER_MM, build_html, load_template
+from brochure.render.html import build_html, load_template, text_heights
 from tests.support import filler_text, sample_state
 
 pytestmark = pytest.mark.integration
@@ -33,15 +32,6 @@ def full_budget_text(slot_id: str, chars: int) -> str:
     return filler_text(chars, line, label)
 
 
-def measured(page_anchors: list[dict], slot_id: str) -> float:
-    """The slot's text height in mm, from its marks; infinite when the text ran off its page, which loses the end mark."""
-    for anchors in page_anchors:
-        start, end = anchors.get(f"start-{slot_id}"), anchors.get(f"end-{slot_id}")
-        if start is not None:
-            return (end[1] - start[1]) / PX_PER_MM if end is not None else math.inf
-    return math.inf
-
-
 def full_budget_heights(budgets: dict[str, int] | None = None) -> dict[str, float]:
     """slot id -> measured mm of each text slot filled to its char_budget (or to the budget given here)."""
     from weasyprint import HTML
@@ -55,8 +45,8 @@ def full_budget_heights(budgets: dict[str, int] | None = None) -> dict[str, floa
         pages.append(PageSpec(layout_id=f"p{number}", slots=slots))
     spec = BrochureSpec(template_id="classic-8pp", pages=pages)
     html = build_html(spec, state.brand_kit, [], ROOT / "sample" / "images", brand_dir=ROOT / "sample")
-    anchors = [p.anchors for p in HTML(string=html, base_url=str(template.directory)).render().pages]
-    return {slot_id: measured(anchors, slot_id) for slot_id in TEXT_SLOTS}
+    laid_out = HTML(string=html, base_url=str(template.directory)).render().pages
+    return text_heights([p.anchors for p in laid_out], spec, template.slots)
 
 
 @pytest.fixture(scope="module")

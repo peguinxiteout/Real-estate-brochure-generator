@@ -4,6 +4,7 @@ import json
 import re
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -15,14 +16,15 @@ from brochure.contracts.manifest import ImageManifest
 from brochure.doctor import find_ghostscript
 from brochure.layout import load_layout_rules
 from brochure.llm import FakeLLM
-from brochure.pipeline.real import real_layout_step
+from brochure.pipeline import stub_agents
+from brochure.pipeline.real import RealRenderer, real_layout_step
 from brochure.pipeline.stubs import load_sample_data, stub_agents
 from brochure.render.geometry import page_geometry_pt
 from brochure.render.html import PX_PER_MM, build_html, load_template, text_heights
 from brochure.render.pdf import ISSUES_FILE, render_brochure, render_with_issues
 from brochure.render.positions import block_gaps, caption_rect, gap_problems
 from tests.integration.test_blank_pdf import PX_PER_PT, Raster, as_box, assert_box, white
-from tests.support import sample_state
+from tests.support import Run, sample_state
 from tools.make_sample_images import generate_images
 
 pytestmark = pytest.mark.integration
@@ -256,3 +258,53 @@ def test_the_cover_caption_is_visible_above_the_band(sample):
     # just inside the top-left corner of the caption's box: its light background, not the image under it or the band
     r, g, b = image.getpixel((round((box.left + 0.6) * px), round((box.top + 0.4) * px)))
     assert min(r, g, b) > 190, (r, g, b)
+
+
+# --- text far over its budget runs off the page: the run still completes ---------------------------------------------
+
+
+FAR_OVER_BUDGET = [f"Landscaped podium garden {n}" for n in range(150)]
+
+
+@pytest.fixture(scope="module")
+def far_over_budget_run(tools_present, images, tmp_path_factory):
+    """A whole graph run, real renderer, with an amenities list far over its budget."""
+    state = sample_state(briefed=False).model_copy(update={"image_dir": str(images)})
+    form = state.brief.form.model_copy(update={"amenities": FAR_OVER_BUDGET})
+    state = state.model_copy(update={"brief": state.brief.model_copy(update={"form": form})})
+    out = tmp_path_factory.mktemp("over")
+    run = Run(replace(stub_agents(), renderer=RealRenderer(out, ROOT / "sample")), thread_id="over")
+    run.start(state)
+    return run, out / "over"
+
+
+def test_a_verbatim_list_far_over_budget_renders_all_8_pages_and_the_pngs(far_over_budget_run):
+    run, out = far_over_budget_run
+    assert len(PdfReader(out / "brochure.pdf").pages) == 8
+    assert sorted(p.name for p in out.glob("page-*.png")) == [f"page-{n}.png" for n in range(1, 9)]
+
+
+def test_a_verbatim_list_far_over_budget_is_reported_for_nobody_and_does_not_loop(far_over_budget_run):
+    run, out = far_over_budget_run
+    assert run.paused_at == ("human_review",) and run.state.qa_round == 1
+    warnings = {w.check: w for w in run.state.spec.qa_warnings}
+    overflow = warnings["render.text_overflow"]
+    assert (overflow.page, overflow.route_to, overflow.severity) == (4, "none", "error")
+    assert "amenities_list" in overflow.note and "runs off the page" in overflow.note
+    assert warnings["verbatim.over_budget"].route_to == "none"
+    assert [i["check"] for i in json.loads((out / ISSUES_FILE).read_text(encoding="utf-8"))] == ["render.text_overflow"]
+
+
+def test_the_run_with_a_list_far_over_budget_completes_after_approval(far_over_budget_run):
+    run, _ = far_over_budget_run
+    run.resume("approved")
+    assert run.paused_at == () and run.state.approval_status == "approved"
+
+
+def test_copywriter_text_off_the_page_is_routed_to_the_copywriter(sample, images, tmp_path):
+    state, spec = sample[0], sample[1]
+    pages = [p.model_copy(deep=True) for p in spec.pages]
+    pages[1].slots["overview_intro"] = pages[1].slots["overview_intro"].model_copy(update={"text": "daylight " * 3000})
+    _, _, issues = render_with_issues(spec.model_copy(update={"pages": pages}), state.brand_kit, state.image_tags, images,
+                                      tmp_path, brand_dir=ROOT / "sample")
+    assert [(i.check, i.page, i.route_to) for i in issues] == [("render.text_overflow", 2, "copywriter")]

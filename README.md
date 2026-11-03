@@ -567,15 +567,22 @@ average length), renders it with the real fonts and template, and asserts no ove
 slot is what fits its height, and the height of a verbatim slot is what fits its budget. `location_landmarks` is set in two
 columns so its full budget fits on page 3. A one-line `cover_title` sits at the foot of its slot, on the tagline.
 
+**Verbatim text over its budget.** `layout_spec()` adds a `verbatim.over_budget` warning (`route_to` `none`, with the page,
+the slot, the length and the budget) to `spec.qa_warnings` for each verbatim slot longer than its `char_budget`. The text
+is never shortened.
+
 **Text overflow.** WeasyPrint's public `Page.anchors` gives the position of every element with an `id`. Each text slot
 holds an empty start mark and end mark; the distance between them is the height of its text. Text taller than the slot
-(by more than `text_overflow_tolerance_mm`, 0.5 mm) becomes a `render.text_overflow` warning routed to `copywriter`,
-with its page. The warnings are written to `out_dir/render_issues.json` (an empty list when there are none), logged,
+(by more than `text_overflow_tolerance_mm`, 0.5 mm) becomes a `render.text_overflow` warning with its page. It is routed
+by who owns the text: a Copywriter slot to `copywriter`, a verbatim slot to `none`, because the Copywriter cannot change
+it. Text so long that it runs off the page does not stop the render: WeasyPrint keeps 8 pages but drops the end of the
+text and the end mark, so the same issue is reported as an `error`, saying that part of the text is not printed. The
+issues are written to `out_dir/render_issues.json` (an empty list when there are none), logged,
 and returned in `RenderResult.issues`. The graph's renderer node puts them in `qa_issues` (nothing reads that field
 between the renderer and QA, and the QA step replaces it), so the QA step sees them; `ScriptedQA` returns the
-`render.*` issues it finds there together with its scripted ones. A `render.text_overflow` therefore sends the run back
-to the copywriter like any QA issue, within the 3-round limit, and one still there after the 3rd round ends up in
-`spec.qa_warnings`. No contract changed: `PipelineState` has no new field. The real QA critic must do the same as the
+`render.*` issues it finds there together with its scripted ones. A `render.text_overflow` on a Copywriter slot therefore
+sends the run back to the copywriter like any QA issue, within the 3-round limit, and one still there after the 3rd
+round ends up in `spec.qa_warnings`. One on a verbatim slot goes straight to `spec.qa_warnings`, with no extra round. No contract changed: `PipelineState` has no new field. The real QA critic must do the same as the
 stub.
 
 **In the pipeline.** `real_agents()` uses `RealRenderer`, which writes into `out/<thread id>/` (git-ignored; outside a
@@ -781,7 +788,6 @@ Full rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
 - The copy keeps curly quotes and apostrophes and en and em dashes; Inter and Open Sans have those glyphs. A character the bundled fonts lack would fall back to a system font; the integration test only checks the sample. Typographic spaces and hyphens are normalised to plain ones.
 - The Copywriter does not see the brief's free-text prompt, so the user's emphasis (for example "the short walk to the station") does not reach the copy.
 - The PDF is RGB. CMYK conversion with Ghostscript is not built.
-- Verbatim text is not checked against its `char_budget`. A list much longer than its budget can run off the page; WeasyPrint then loses the slot's end mark and the render stops with an error instead of reporting overflow.
 - Pages 2 and 7 leave white space at the foot: their images are as large as the sample's pixels allow at 300 DPI, or as the design keeps them (`about_img` is 88 mm wide). Short verbatim text leaves space inside its slot, because the slot fits the full budget.
 - WeasyPrint is pinned to `weasyprint==70.0` because the BleedBox finisher edits WeasyPrint's PDF objects (pydyf)
   directly. Check the boxes again (the integration tests) before moving to another version.

@@ -2,6 +2,17 @@
 
 Newest entry first.
 
+## 2026-11-03: overflow never stops the render; verbatim text over budget is reported
+
+- Text that runs off its page no longer raises. WeasyPrint keeps 8 pages but drops the end of the text and the slot's
+  end mark, so `text_heights()` gives `math.inf` and `render.text_overflow` is reported with severity `error`, saying
+  part of the text is not printed. A missing start mark is still a `RuntimeError`: that is a fault in the template.
+- `render.text_overflow` is routed by who owns the text: Copywriter slots to `copywriter`, verbatim slots to `none`, so
+  verbatim overflow no longer spends QA rounds and goes straight to `spec.qa_warnings`.
+- New check `verbatim.over_budget`: `layout_spec()` adds a warning (`route_to` `none`) for each verbatim slot longer than
+  its `char_budget`. The text is never shortened.
+- No contract or `slots.json` change.
+
 ## 2026-11-03: classic-8pp text slots fit their full budgets
 
 **Shared contract: `templates/classic-8pp/slots.json` changed. Please review.** Rule: every text slot's height fits its

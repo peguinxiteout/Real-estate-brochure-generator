@@ -166,8 +166,8 @@ def render_with_issues(
     spec: BrochureSpec, brand_kit: BrandKit, image_tags: list[ImageTag], image_dir: Path, out_dir: Path, *,
     brand_dir: Path | None = None, config: PrintConfig = PRINT,
 ) -> tuple[Path, list[Path], list[QAIssue]]:
-    """As render_brochure, plus the render's issues: text taller than its slot, measured on the laid-out pages, as
-    render.text_overflow warnings for the copywriter. They are also written to out_dir/render_issues.json (an empty
+    """As render_brochure, plus the render's issues: text taller than its slot or off its page, measured on the laid-out
+    pages, as render.text_overflow (see text_overflow_issues). They are also written to out_dir/render_issues.json (an empty
     list when there are none) and logged. brand_dir is where a relative logo_path is looked up (default: the current
     directory)."""
     from brochure.render.html import build_html, load_template, text_overflow_issues

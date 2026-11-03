@@ -109,3 +109,14 @@ def test_the_real_renderer_returns_the_issues_the_render_found(tmp_path):
     state = sample_state().model_copy(update={"spec": _spec()})
     result = RealRenderer(tmp_path, REPO_ROOT / "sample", render=render)(state, FakeLLM({}))
     assert result.issues == [overflow()]
+
+
+def verbatim_overflow(note="config_table: the text is 200 mm tall but the slot is 114 mm"):
+    return QAIssue(check="render.text_overflow", page=5, severity="warning", note=note, route_to="none")
+
+
+def test_a_verbatim_overflow_does_not_send_the_run_back_and_is_shown_to_the_reviewer():
+    run, calls = run_with_renderer([[verbatim_overflow()]])
+    assert run.paused_at == ("human_review",)
+    assert (calls["copywriter"], calls["layout"], calls["renderer"], calls["qa"]) == (1, 1, 1, 1)
+    assert run.state.spec.qa_warnings == [verbatim_overflow()]

@@ -4,6 +4,7 @@ slot boxes from slots.json (sizes) and positions.json (places), the print geomet
 Also the text overflow check, which reads the start and end marks of each text slot from the laid-out pages
 (WeasyPrint's public Page.anchors) and so needs no WeasyPrint itself.
 """
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from brochure.render.positions import (
 )
 from brochure.render.qr import qr_svg
 from brochure.slots import ResolvedSlot, SlotTemplate, load_slots
+from brochure.verbatim import VERBATIM_SLOTS
 
 TEMPLATES_DIR = Path(__file__).resolve().parents[3] / "templates"
 PX_PER_MM = 96 / 25.4  # CSS px, the unit of Page.anchors
@@ -172,7 +174,8 @@ def build_html(spec: BrochureSpec, brand_kit: BrandKit, image_tags: list[ImageTa
 
 def text_heights(page_anchors: list[dict], spec: BrochureSpec, slots: SlotTemplate) -> dict[str, float]:
     """slot id -> height in mm of the text of each filled text slot, from its start and end marks on the laid-out page.
-    page_anchors[i] is Page.anchors of page i + 1."""
+    page_anchors[i] is Page.anchors of page i + 1. Text that ran off the page loses its end mark, along with the end of
+    the text itself: its height is math.inf. A missing start mark is a fault in the template: RuntimeError."""
     heights = {}
     for number, (page, anchors) in enumerate(zip(spec.pages, page_anchors), start=1):
         for slot in slots.slots:
@@ -180,22 +183,30 @@ def text_heights(page_anchors: list[dict], spec: BrochureSpec, slots: SlotTempla
             if slot.page != number or slot.type != "text" or fill is None or not fill.text:
                 continue
             start, end = anchors.get(f"start-{slot.id}"), anchors.get(f"end-{slot.id}")
-            if start is None or end is None:
-                raise RuntimeError(f"the laid-out page {number} has no start and end marks for text slot {slot.id!r}")
-            heights[slot.id] = (end[1] - start[1]) / PX_PER_MM
+            if start is None:
+                raise RuntimeError(f"the laid-out page {number} has no start mark for text slot {slot.id!r}")
+            heights[slot.id] = (end[1] - start[1]) / PX_PER_MM if end is not None else math.inf
     return heights
 
 
 def text_overflow_issues(page_anchors: list[dict], spec: BrochureSpec, slots: SlotTemplate,
                          config: PrintConfig = PRINT) -> list[QAIssue]:
-    """A render.text_overflow warning, routed to the copywriter, for each filled text slot whose text runs below the
-    slot's height (by more than config.text_overflow_tolerance_mm). page_anchors[i] is Page.anchors of page i + 1."""
+    """A render.text_overflow issue for each filled text slot whose text runs below the slot's height (by more than
+    config.text_overflow_tolerance_mm). Routed to the copywriter when it wrote the text; a verbatim slot goes to nobody,
+    because the Copywriter cannot change it. A warning, or an error when the text ran off the page, because then part of
+    it is not printed. page_anchors[i] is Page.anchors of page i + 1."""
     issues = []
     for slot_id, height in text_heights(page_anchors, spec, slots).items():
         slot = slots.get(slot_id)
-        if height > slot.height_mm + config.text_overflow_tolerance_mm:
-            issues.append(QAIssue(
-                check="render.text_overflow", page=slot.page, severity="warning", route_to="copywriter",
-                note=f"{slot.id}: the text is {height:.0f} mm tall but the slot is {slot.height_mm:g} mm; shorten it",
-            ))
+        if height <= slot.height_mm + config.text_overflow_tolerance_mm:
+            continue
+        verbatim = slot_id in VERBATIM_SLOTS
+        fix = "it is verbatim, so a person must change its source" if verbatim else "shorten it"
+        what = ("the text runs off the page, so part of it is not printed" if math.isinf(height)
+                else f"the text is {height:.0f} mm tall")
+        issues.append(QAIssue(
+            check="render.text_overflow", page=slot.page, severity="error" if math.isinf(height) else "warning",
+            route_to="none" if verbatim else "copywriter",
+            note=f"{slot.id}: {what} but the slot is {slot.height_mm:g} mm; {fix}",
+        ))
     return issues
