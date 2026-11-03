@@ -93,15 +93,26 @@ files in `sample/` (including `sample/stub_copy.json`), make no LLM calls and re
   added to `spec.qa_warnings`, after the layout's own warnings.
 - `human_review` pauses. The caller resumes with `"approved"` (the run goes to export and ends) or
   `"changes_requested"` (back through layout, render and QA to review; `qa_round` restarts at 0). Any other answer is
-  asked again.
+  asked again. `"approved"` is refused while `blocking` is not empty: legal content is missing from the print file, and
+  export never runs in that state.
 - What the caller sees when the run pauses (`graph.get_state(config).tasks[0].interrupts[0].value`):
 
   ```
   missing fields:  {"ask": "brief", "missing_fields": ["rera_number"], "errors": {}}
   after a bad one: {"ask": "brief", "missing_fields": ["rera_number"], "errors": {"rera_number": "must not be empty"}}
-  review:          {"ask": "review", "pdf_path": "...", "page_images": ["...", ...], "error": null}
-  after a bad one: {"ask": "review", "pdf_path": "...", "page_images": [...], "error": "answer 'approved' or 'changes_requested', not 'maybe'"}
+  review:          {"ask": "review", "pdf_path": "...", "page_images": ["...", ...], "error": null, "blocking": []}
+  after a bad one: {"ask": "review", "pdf_path": "...", "page_images": [...], "error": "answer 'approved' or 'changes_requested', not 'maybe'", "blocking": []}
+  blocked:         {"ask": "review", "pdf_path": "...", "page_images": [...], "error": null,
+                    "blocking": [{"check": "render.text_overflow", "page": 8, "note": "disclaimer: the text runs off the page, ..."}]}
+  approved anyway: the same, with "error": "can't approve: disclaimer: the text runs off the page, ..."
   ```
+
+  `blocking` is always present and is an empty list when nothing blocks. Each entry has `check`, `page` and `note`, in the
+  order of the template's legal list; `error` quotes the first. The legal slots are listed in
+  `templates/classic-8pp/legal_slots.json` (`cover_rera_line`, `rera_number`, `disclaimer`, `rera_qr`). An entry is
+  `render.text_overflow` (severity `error`: the text ran off the page) or `legal.slot_empty` (no fill, blank text, the
+  `[copy needed: ...]` placeholder, or no QR data). Legal text that is only taller than its slot or over its budget is still
+  printed, so it stays a warning. The way out is `"changes_requested"`, once the source is corrected.
 
   `errors` maps a field name to a short message; an unknown field is keyed by the name it was sent under (message
   "unknown field"), and an answer that is not an object is keyed "answer". `missing_fields` lists what is still
