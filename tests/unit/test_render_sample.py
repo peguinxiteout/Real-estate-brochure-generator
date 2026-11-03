@@ -24,7 +24,7 @@ class FakeRender:
 
     def __call__(self, spec, brand_kit, image_tags, image_dir, out_dir, *, brand_dir=None):
         self.calls.append((Path(image_dir), Path(out_dir)))
-        return Path(out_dir) / "brochure.pdf", [Path(out_dir) / f"page-{n}.png" for n in range(1, 9)]
+        return Path(out_dir) / "brochure.pdf", [Path(out_dir) / f"page-{n}.png" for n in range(1, 9)], []
 
 
 @pytest.fixture

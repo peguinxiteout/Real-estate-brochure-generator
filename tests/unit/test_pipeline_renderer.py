@@ -18,7 +18,7 @@ class FakeRender:
     def __call__(self, spec, brand_kit, image_tags, image_dir, out_dir, *, brand_dir=None):
         self.calls.append({"spec": spec, "brand_kit": brand_kit, "image_tags": image_tags, "image_dir": Path(image_dir),
                            "out_dir": Path(out_dir), "brand_dir": brand_dir})
-        return Path(out_dir) / "brochure.pdf", [Path(out_dir) / f"page-{n}.png" for n in range(1, len(spec.pages) + 1)]
+        return Path(out_dir) / "brochure.pdf", [Path(out_dir) / f"page-{n}.png" for n in range(1, len(spec.pages) + 1)], []
 
 
 def test_real_agents_render_for_real_into_out_by_default_and_the_stub_agents_do_not():

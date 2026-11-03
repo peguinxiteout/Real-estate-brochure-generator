@@ -18,6 +18,7 @@ from pathlib import Path
 
 from brochure.contracts.brand import BrandKit
 from brochure.contracts.images import ImageTag
+from brochure.contracts.qa import QAIssue
 from brochure.contracts.spec import BrochureSpec
 from brochure.print_config import PRINT, PrintConfig
 from brochure.render.geometry import Box, PageGeometry, check_page_count, page_geometry_pt
@@ -154,13 +155,21 @@ def render_brochure(
     spec: BrochureSpec, brand_kit: BrandKit, image_tags: list[ImageTag], image_dir: Path, out_dir: Path, *,
     brand_dir: Path | None = None, config: PrintConfig = PRINT,
 ) -> tuple[Path, list[Path]]:
-    """Render the spec to out_dir/brochure.pdf and one PNG per page (out_dir/page-<n>.png, 100 DPI, the whole
-    MediaBox), in page order. Returns (pdf_path, page_image_paths).
+    """Render the spec to out_dir/brochure.pdf and one PNG per page (out_dir/page-<n>.png, 100 DPI, cropped to the
+    trim), in page order. Returns (pdf_path, page_image_paths); render_with_issues also returns the issues found."""
+    pdf_path, pngs, _ = render_with_issues(spec, brand_kit, image_tags, image_dir, out_dir, brand_dir=brand_dir,
+                                           config=config)
+    return pdf_path, pngs
 
-    Text taller than its slot is measured on the laid-out pages and written to out_dir/render_issues.json as
-    render.text_overflow warnings (an empty list when there are none), and logged.
-    brand_dir is where a relative logo_path is looked up (default: the current directory).
-    """
+
+def render_with_issues(
+    spec: BrochureSpec, brand_kit: BrandKit, image_tags: list[ImageTag], image_dir: Path, out_dir: Path, *,
+    brand_dir: Path | None = None, config: PrintConfig = PRINT,
+) -> tuple[Path, list[Path], list[QAIssue]]:
+    """As render_brochure, plus the render's issues: text taller than its slot, measured on the laid-out pages, as
+    render.text_overflow warnings for the copywriter. They are also written to out_dir/render_issues.json (an empty
+    list when there are none) and logged. brand_dir is where a relative logo_path is looked up (default: the current
+    directory)."""
     from brochure.render.html import build_html, load_template, text_overflow_issues
 
     image_dir = Path(image_dir).resolve()
@@ -186,11 +195,12 @@ def render_brochure(
     (out_dir / ISSUES_FILE).write_text(json.dumps([i.model_dump() for i in issues], indent=2), encoding="utf-8")
     for issue in issues:
         log.warning("%s (page %s): %s", issue.check, issue.page, issue.note)
-    return pdf_path, page_pngs(pdf_path, out_dir, len(spec.pages))
+    return pdf_path, page_pngs(pdf_path, out_dir, len(spec.pages)), issues
 
 
 def page_pngs(pdf_path: Path, out_dir: Path, page_count: int, dpi: int = PAGE_PNG_DPI) -> list[Path]:
-    """Rasterise every page of the PDF with Ghostscript (found as `brochure doctor` finds it) to out_dir/page-<n>.png."""
+    """Rasterise every page of the PDF with Ghostscript (found as `brochure doctor` finds it) to out_dir/page-<n>.png,
+    cropped to the TrimBox: the page as it is after cutting, with no bleed, slug or crop marks."""
     from brochure.doctor import find_ghostscript
 
     gs = find_ghostscript().path
@@ -199,7 +209,7 @@ def page_pngs(pdf_path: Path, out_dir: Path, page_count: int, dpi: int = PAGE_PN
     for old in out_dir.glob("page-*.png"):
         old.unlink()
     result = subprocess.run(
-        [str(gs), "-dSAFER", "-dBATCH", "-dNOPAUSE", "-dQUIET", "-sDEVICE=png16m", f"-r{dpi}",
+        [str(gs), "-dSAFER", "-dBATCH", "-dNOPAUSE", "-dQUIET", "-sDEVICE=png16m", f"-r{dpi}", "-dUseTrimBox",
          "-dTextAlphaBits=4", "-dGraphicsAlphaBits=4", f"-sOutputFile={out_dir / 'page-%d.png'}", str(pdf_path)],
         capture_output=True, text=True, timeout=300,
     )

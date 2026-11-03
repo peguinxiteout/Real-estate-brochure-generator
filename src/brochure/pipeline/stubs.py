@@ -42,15 +42,19 @@ def load_sample_data(root: Path = REPO_ROOT) -> SampleData:
 
 
 class ScriptedQA:
-    """QA stub. issues_per_round[n] is what the critic reports on its (n+1)th pass; later passes report nothing."""
+    """QA stub. issues_per_round[n] is what the critic reports on its (n+1)th pass; later passes report nothing.
+
+    The renderer's own issues (check "render.*", put in qa_issues by the renderer step) are passed through first, so
+    they route like any QA issue."""
 
     def __init__(self, issues_per_round: list[list[QAIssue]] | None = None):
         self.issues_per_round = issues_per_round or []
 
     def __call__(self, state: PipelineState, llm) -> list[QAIssue]:
+        rendered = [i for i in state.qa_issues if i.check.startswith("render.")]
         if state.qa_round < len(self.issues_per_round):
-            return list(self.issues_per_round[state.qa_round])
-        return []
+            return [*rendered, *self.issues_per_round[state.qa_round]]
+        return rendered
 
 
 def stub_agents(data: SampleData | None = None, qa=None) -> Agents:

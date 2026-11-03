@@ -2,6 +2,19 @@
 
 Newest entry first.
 
+## 2026-11-03: classic-8pp review fixes
+
+- `pyproject.toml` pins `weasyprint==70.0`: the BleedBox finisher relies on WeasyPrint's PDF internals.
+- Render issues reach the pipeline: `RenderResult` gains `issues` (empty by default, so the stub renderer is
+  unchanged); `RealRenderer` uses the new `render_with_issues()` (`render_brochure()` still returns
+  `(pdf_path, page_image_paths)`); the graph's renderer node puts the issues in `qa_issues`, and `ScriptedQA` returns
+  the `render.*` issues with its scripted ones. A `render.text_overflow` loops to the copywriter within the 3-round
+  limit; one left after the 3rd round lands in `spec.qa_warnings`. `render_issues.json` is still written. No contract
+  change.
+- Page PNGs are cropped to the TrimBox (Ghostscript `-dUseTrimBox`): 827 x 1169 px at 100 DPI, no slug or crop marks.
+  `sample/pages/` regenerated (0.32 MB). The integration test of the hero at the bleed edge now renders page 1's
+  MediaBox itself.
+
 ## 2026-11-02: classic-8pp template and renderer
 
 The first real brochure from the pipeline: the `classic-8pp` HTML/CSS template and a renderer that turns a

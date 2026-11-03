@@ -87,7 +87,7 @@ files in `sample/` (including `sample/stub_copy.json`), make no LLM calls and re
   `Command(resume={"rera_number": "..."})`. Each answered field that is valid is kept; a field that is not (unknown,
   wrong type, blank, or still failing `ProjectFacts`) is refused and the question is asked again. Nothing raises. The
   brief step runs again when nothing is missing.
-- After the renderer, the QA step runs. An issue routed to `copywriter` sends the run back to the copywriter (then
+- After the renderer, the QA step runs. It sees the renderer's own issues (text overflow) as well as its own. An issue routed to `copywriter` sends the run back to the copywriter (then
   layout, render, QA); one routed to `layout` goes back to layout; one routed to `none` does not loop. After 3 QA
   passes the run moves on whatever the issues say. Issues that do not loop, and any left after the 3rd pass, are
   added to `spec.qa_warnings`, after the layout's own warnings.
@@ -504,7 +504,8 @@ and the slot's comment says so.
 `(pdf_path, page_image_paths)`. It writes `out_dir/brochure.pdf` with WeasyPrint (imported inside the function, so the
 unit tests run without Pango), with the page rule, crop marks and BleedBox finisher of the blank proof (section 7), and
 `out_dir/page-<n>.png`, one per page in page order, rendered by Ghostscript (found as `brochure doctor` finds it) at
-100 DPI over the whole MediaBox, crop marks included. Images are read from `image_dir` + each image's path; a missing
+100 DPI and cropped to the TrimBox (`-dUseTrimBox`): the page as it is after cutting, 827 x 1169 px, with no bleed,
+slug or crop marks. `render_with_issues(...)` takes the same arguments and also returns the render's issues. Images are read from `image_dir` + each image's path; a missing
 file stops the render before WeasyPrint runs. Nothing is written to the image files: cropping is CSS only.
 
 **Positions** (`templates/classic-8pp/positions.json`, owned by the template, not a shared contract). For every slot:
@@ -551,9 +552,13 @@ first and second colours are used. Brand colours and font families reach the CSS
 **Text overflow.** WeasyPrint's public `Page.anchors` gives the position of every element with an `id`. Each text slot
 holds an empty start mark and end mark; the distance between them is the height of its text. Text taller than the slot
 (by more than `text_overflow_tolerance_mm`, 0.5 mm) becomes a `render.text_overflow` warning routed to `copywriter`,
-with its page. The warnings are written to `out_dir/render_issues.json` (an empty list when there are none) and
-logged. They do not reach `PipelineState` yet: that needs a field on `RenderResult` and a line in the graph's
-renderer node.
+with its page. The warnings are written to `out_dir/render_issues.json` (an empty list when there are none), logged,
+and returned in `RenderResult.issues`. The graph's renderer node puts them in `qa_issues` (nothing reads that field
+between the renderer and QA, and the QA step replaces it), so the QA step sees them; `ScriptedQA` returns the
+`render.*` issues it finds there together with its scripted ones. A `render.text_overflow` therefore sends the run back
+to the copywriter like any QA issue, within the 3-round limit, and one still there after the 3rd round ends up in
+`spec.qa_warnings`. No contract changed: `PipelineState` has no new field. The real QA critic must do the same as the
+stub.
 
 **In the pipeline.** `real_agents()` uses `RealRenderer`, which writes into `out/<thread id>/` (git-ignored; outside a
 graph run, `out/run-<time>-<id>/`). `real_agents(out_root=...)` changes the folder. `stub_agents()` keeps the stub,
@@ -568,10 +573,11 @@ Render the sample (WSL; generates `sample/images/` if any image is missing):
 
 It runs the graph with the stub brief, vision and copy (no LLM), the real layout and the real renderer, stops at human
 review, and prints the PDF path, the PNG paths and every warning (the layout's, then any text overflow). A copy of the
-8 PNGs (100 DPI, 0.33 MB in all) is committed in `sample/pages/` for QA critic work. The integration tests render the
+8 PNGs (100 DPI, trim size, 0.32 MB in all) is committed in `sample/pages/` for QA critic work. The integration tests render the
 sample and check the page count, every page's boxes, that only Inter and Open Sans are embedded, the extracted text
 (RERA number on pages 1 and 8, project name on page 1, disclaimer on page 8, "Artist's impression" on exactly the
-pages with a render), the 8 PNGs and that the hero reaches the bleed edge on page 1:
+pages with a render), the 8 PNGs (trim size within 1 px, no crop-mark black in the corners) and that the hero reaches
+the bleed edge on page 1 (on a MediaBox rendering of page 1 that the test makes itself):
 
 ```
 ~/.venvs/brochure/bin/python -m pytest tests/integration/test_render_brochure.py -rs
@@ -755,7 +761,7 @@ Full rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
 - The Copywriter's prompt cannot make a model count characters; a long slot is fixed by the retry, and a slot that fails twice shows `[copy needed: ...]`.
 - The copy keeps curly quotes and apostrophes and en and em dashes; Inter and Open Sans have those glyphs. A character the bundled fonts lack would fall back to a system font; the integration test only checks the sample. Typographic spaces and hyphens are normalised to plain ones.
 - The Copywriter does not see the brief's free-text prompt, so the user's emphasis (for example "the short walk to the station") does not reach the copy.
-- Text overflow is measured and written to `render_issues.json` and the log, but it does not reach the graph's state, so it does not route to the copywriter yet (see "Template and renderer").
 - The PDF is RGB. CMYK conversion with Ghostscript is not built.
 - The slot heights are fixed, so short copy leaves gaps (for example between `overview_intro` and `overview_highlights`).
-- WeasyPrint is declared as `weasyprint>=62`, not pinned; the renderer was checked on 70.0.
+- WeasyPrint is pinned to `weasyprint==70.0` because the BleedBox finisher edits WeasyPrint's PDF objects (pydyf)
+  directly. Check the boxes again (the integration tests) before moving to another version.

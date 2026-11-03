@@ -1,5 +1,5 @@
 """The steps of the pipeline, as plain callables. The graph only knows this shape, never a concrete agent."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from brochure.contracts.images import ImageTag
 from brochure.contracts.project import BriefForm, ProjectFacts
@@ -22,6 +22,7 @@ class BriefOutcome:
 class RenderResult:
     pdf_path: str
     page_images: list[str]  # one PNG path per page, in page order
+    issues: list[QAIssue] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

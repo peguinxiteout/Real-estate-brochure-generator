@@ -17,7 +17,7 @@ from brochure.llm import FakeLLM
 from brochure.pipeline.real import real_layout_step
 from brochure.pipeline.stubs import load_sample_data, stub_agents
 from brochure.render.geometry import page_geometry_pt
-from brochure.render.pdf import ISSUES_FILE, render_brochure
+from brochure.render.pdf import ISSUES_FILE, render_brochure, render_with_issues
 from tests.integration.test_blank_pdf import PX_PER_PT, Raster, as_box, assert_box, white
 from tests.support import sample_state
 from tools.make_sample_images import generate_images
@@ -125,16 +125,43 @@ def test_the_sample_text_fits_its_slots(sample):
     assert json.loads((sample[2] / ISSUES_FILE).read_text(encoding="utf-8")) == []
 
 
-def test_eight_page_pngs_of_the_whole_media_box_are_written_in_order(sample):
+def crop_mark_black(rgb) -> bool:
+    return max(rgb) < 40  # the brand navy (31, 58, 95) is dark but not this dark
+
+
+def test_eight_page_pngs_of_the_trim_box_are_written_in_order(sample):
     pngs = sample[4]
-    media = page_geometry_pt().media
+    trim = page_geometry_pt().trim
+    expected = (trim.width * PX_PER_PT, trim.height * PX_PER_PT)  # 826.8 x 1169.3 at 100 DPI
     assert [p.name for p in pngs] == [f"page-{n}.png" for n in range(1, 9)]
     for png in pngs:
-        assert Image.open(png).size == (round(media.width * PX_PER_PT), round(media.height * PX_PER_PT))
+        size = Image.open(png).size
+        assert abs(size[0] - expected[0]) <= 1 and abs(size[1] - expected[1]) <= 1, (png.name, size)
 
 
-def test_the_hero_reaches_the_bleed_edge_on_the_cover(sample, images):
-    raster = Raster(Image.open(sample[4][0]).convert("RGB"), page_geometry_pt().media)
+def test_the_page_pngs_have_no_crop_marks_in_their_corners(sample):
+    for png in sample[4]:
+        image = Image.open(png).convert("RGB")
+        w, h = image.size
+        for c, r in ((0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1), (2, 2), (w - 3, h - 3)):
+            assert not crop_mark_black(image.getpixel((c, r))), (png.name, (c, r), image.getpixel((c, r)))
+
+
+@pytest.fixture(scope="module")
+def cover_media_png(sample, tmp_path_factory):
+    """Page 1 over the whole MediaBox (the page PNGs stop at the trim), rendered here with Ghostscript."""
+    png = tmp_path_factory.mktemp("cover") / "cover.png"
+    result = subprocess.run(
+        [str(find_ghostscript().path), "-dSAFER", "-dBATCH", "-dNOPAUSE", "-dQUIET", "-sDEVICE=png16m", "-r100",
+         "-dFirstPage=1", "-dLastPage=1", f"-sOutputFile={png}", str(sample[3])],
+        capture_output=True, text=True, timeout=120,
+    )
+    assert result.returncode == 0, result.stderr
+    return png
+
+
+def test_the_hero_reaches_the_bleed_edge_on_the_cover(cover_media_png, images):
+    raster = Raster(Image.open(cover_media_png).convert("RGB"), page_geometry_pt().media)
     b = page_geometry_pt().bleed
     hero = Image.open(images / "hero_tower.jpg").convert("RGB")
     inside, outside = 1.5 / PX_PER_PT, 3 / PX_PER_PT
@@ -163,3 +190,10 @@ def test_render_sample_script_writes_the_pdf_and_pngs_and_prints_them_with_the_w
     for n in range(1, 9):
         assert (out / f"page-{n}.png").is_file() and str(out / f"page-{n}.png") in result.stdout
     assert "layout.slot_unfilled" in result.stdout
+
+
+def test_render_with_issues_returns_the_issues_it_writes_to_the_issues_file(sample, images, tmp_path):
+    state, spec = sample[0], sample[1]
+    pdf, pngs, issues = render_with_issues(spec, state.brand_kit, state.image_tags, images, tmp_path, brand_dir=ROOT / "sample")
+    assert pdf == tmp_path / "brochure.pdf" and len(pngs) == 8
+    assert [i.model_dump() for i in issues] == json.loads((tmp_path / ISSUES_FILE).read_text(encoding="utf-8")) == []

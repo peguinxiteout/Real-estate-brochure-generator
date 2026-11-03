@@ -69,8 +69,10 @@ def build_graph(agents: Agents, checkpointer, llm):
         return {"spec": agents.layout(state, llm)}
 
     def renderer(state: PipelineState):
+        """The render's own findings (text overflow) go in qa_issues for the QA step, which returns them with its own;
+        nothing reads qa_issues between here and QA."""
         result = agents.renderer(state, llm)
-        return {"pdf_path": result.pdf_path, "page_images": result.page_images}
+        return {"pdf_path": result.pdf_path, "page_images": result.page_images, "qa_issues": list(result.issues)}
 
     def qa(state: PipelineState):
         issues, qa_round = agents.qa(state, llm), state.qa_round + 1

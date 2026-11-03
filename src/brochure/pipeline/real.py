@@ -49,7 +49,7 @@ def real_layout_step(state: PipelineState, llm: LLMClient, template: SlotTemplat
 class RealRenderer:
     """The renderer step: the spec to a print PDF and page PNGs with WeasyPrint and Ghostscript, written into
     out_root/<thread id>/ (out_root/run-<time>-<id>/ when called outside a graph run). A relative logo_path is looked
-    up in brand_dir. `render` is render_brochure; tests pass a fake."""
+    up in brand_dir. `render` is render_with_issues; tests pass a fake."""
 
     def __init__(self, out_root: Path, brand_dir: Path, render=None):
         self.out_root, self.brand_dir = Path(out_root), Path(brand_dir)
@@ -68,10 +68,10 @@ class RealRenderer:
     def __call__(self, state: PipelineState, llm: LLMClient) -> RenderResult:
         render = self.render
         if render is None:
-            from brochure.render.pdf import render_brochure as render
-        pdf, pages = render(state.spec, state.brand_kit, state.image_tags, Path(state.image_dir), self.out_dir(),
+            from brochure.render.pdf import render_with_issues as render
+        pdf, pages, issues = render(state.spec, state.brand_kit, state.image_tags, Path(state.image_dir), self.out_dir(),
                             brand_dir=self.brand_dir)
-        return RenderResult(pdf_path=str(pdf), page_images=[str(p) for p in pages])
+        return RenderResult(pdf_path=str(pdf), page_images=[str(p) for p in pages], issues=list(issues))
 
 
 def real_agents(data: SampleData | None = None, qa=None, rules: LayoutRules | None = None, renderer=None,
