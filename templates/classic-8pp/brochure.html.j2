@@ -19,12 +19,10 @@
 <body>
 {% for page in pages %}
 <section class="sheet" id="page-{{ page.number }}">
-{# Decoration belongs to the template: a colour band on the cover behind the title, a thin band on the pages that do not open with a bleeding image. #}
-{% if page.number == 1 %}
-<div class="deco cover-band"></div>
-{% elif page.number in (3, 4, 5, 7, 8) %}
-<div class="deco top-band"></div>
-{% endif %}
+{# Decoration belongs to the template (positions.json): a colour band on the cover behind the title, a thin band on the pages that do not open with a bleeding image. #}
+{% for deco in page.decorations %}
+<div class="deco {{ deco.id }}" style="{{ deco.style }}"></div>
+{% endfor %}
 {% for slot in page.slots %}
 {% if slot.kind == "image" %}
 <div class="slot image" id="slot-{{ slot.id }}" style="{{ slot.style }}"><img src="{{ slot.src }}" alt="" style="object-fit: cover; object-position: {{ slot.object_position }};">{% if slot.caption %}<span class="caption" style="{{ slot.caption_style }}">{{ slot.caption }}</span>{% endif %}</div>

@@ -21,6 +21,8 @@ class PrintConfig:
     safe_margin_mm: float = 10
     # Text measured taller than its slot by more than this is reported as overflow (smaller is layout rounding).
     text_overflow_tolerance_mm: float = 0.5
+    # Layout: the most white space between two consecutive blocks on a page (see positions.gap_problems).
+    max_block_gap_mm: float = 15
     # A printed booklet is folded from sheets of 4 pages, so the page count is a positive multiple of this.
     page_count_multiple: int = 4
 

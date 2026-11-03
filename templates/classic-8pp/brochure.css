@@ -17,19 +17,16 @@ body {
 .mark { height: 0; }
 
 /* Decoration */
-.deco { position: absolute; z-index: 1; }
-.cover-band {
-  left: -3mm; top: 210mm; width: 216mm; height: 90mm;
-  background: var(--primary); border-top: 1.2mm solid var(--accent);
-}
-.top-band { left: -3mm; top: -3mm; width: 216mm; height: 7mm; background: var(--primary); }
+.deco { position: absolute; z-index: 1; box-sizing: border-box; }
+.cover-band { background: var(--primary); border-top: 1.2mm solid var(--accent); }
+.top-band { background: var(--primary); }
 
 /* Images */
 .image img { display: block; width: 100%; height: 100%; }
 .caption {
   position: absolute; z-index: 3;
   font-family: var(--body-font); font-size: 6.5pt; line-height: 1; color: #333333;
-  background: rgba(255, 255, 255, 0.88); padding: 1mm 1.8mm;
+  background: rgba(255, 255, 255, 0.88); padding: 1mm 0; box-sizing: border-box; text-align: center; white-space: nowrap;
 }
 .placeholder { background: #f1f0ec; border: 0.5pt solid #c9c6be; }
 .placeholder span {
@@ -67,6 +64,5 @@ body {
 #slot-cover_tagline { color: var(--accent); font-weight: 400; }
 #slot-cover_rera_line { color: #e6e9ef; }
 #slot-overview_highlights ul, #slot-amenities_list ul { columns: 2; column-gap: 8mm; }
-#slot-config_table li { font-family: var(--heading-font); font-weight: 600; font-size: 12pt; color: var(--primary); margin-bottom: 3mm; }
-#slot-config_table li::before { top: 2.3mm; }
+#slot-static-qr-label { text-align: center; }
 #slot-disclaimer p { border-top: 0.5pt solid var(--accent); padding-top: 3mm; }  /* between the marks, so it is measured */

@@ -12,10 +12,19 @@ The rules (position_problems):
   past the trim there; on every other edge it lies strictly inside the trim (it never touches the trim edge);
 - text and QR slots lie inside the safe area: the trim inset by safe_margin_mm on every edge;
 - no two slots on a page overlap, except the pairs listed in overlays: a text, QR or logo slot on a non-logo image slot.
-  A listed pair must overlap.
+  A listed pair must overlap;
+- any non-logo image may be a render, so each has a caption box (caption_rect, in the corner its position names): the
+  box lies inside the image and outside every slot listed over the image and every decoration on the page;
+- static text (words that belong to the template, not slots) has a role, lies inside the safe area and overlaps no slot
+  and no other static text.
+
+Separately, gap_problems: the white space between consecutive blocks on a page stays within max_block_gap_mm, except
+above the blocks named in free_gap_above. It is a design rule of a finished template, so it is not part of the checks
+above, which run on every render.
 """
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -25,6 +34,9 @@ from brochure.slots import ResolvedSlot, SlotTemplate
 
 ROLES = ("title", "heading", "subheading", "body", "list", "small-print")
 EPS = 1e-9
+CAPTION_WIDTH_MM = 27  # holds "Artist's impression" at the caption's size; the renderer draws the box at exactly this size
+CAPTION_HEIGHT_MM = 4.5
+CAPTION_INSET_MM = 2.5  # from a slot edge that does not bleed
 
 
 class SlotPosition(BaseModel):
@@ -34,6 +46,7 @@ class SlotPosition(BaseModel):
     x_mm: float
     y_mm: float
     role: str | None = None  # text slots only: which text style the template gives it
+    caption: Literal["top-right", "bottom-right"] = "bottom-right"  # image slots: the corner for a render's caption
 
 
 class Overlay(BaseModel):
@@ -45,12 +58,43 @@ class Overlay(BaseModel):
     over: str
 
 
+class Decoration(BaseModel):
+    """A band of colour drawn behind the slots on the listed pages. `id` is its CSS class; the box may bleed."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    pages: list[int]
+    x_mm: float
+    y_mm: float
+    width_mm: float
+    height_mm: float
+
+
+class StaticText(BaseModel):
+    """Words that belong to the template, such as a section title: not a slot, so nobody writes or fills them."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    page: int
+    x_mm: float
+    y_mm: float
+    width_mm: float
+    height_mm: float
+    role: str
+    text: str
+
+
 class PositionsFile(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     template_id: str
     positions: list[SlotPosition]
     overlays: list[Overlay] = []
+    decorations: list[Decoration] = []
+    static_text: list[StaticText] = []
+    free_gap_above: list[str] = []  # blocks that may have any amount of white space above them
 
     def of(self, slot_id: str) -> SlotPosition:
         return next(p for p in self.positions if p.slot == slot_id)
@@ -102,6 +146,22 @@ def drawn_rect(slot: ResolvedSlot, pos: SlotPosition, config: PrintConfig = PRIN
     left = pos.x_mm - (b if "left" in edges else 0)
     top = pos.y_mm - (b if "top" in edges else 0)
     return Rect(left, top, slot.bleed_width_mm, slot.bleed_height_mm)
+
+
+def caption_rect(slot: ResolvedSlot, pos: SlotPosition, config: PrintConfig = PRINT) -> Rect:
+    """Where a render's caption goes: in the position's corner, inset CAPTION_INSET_MM from an edge of the slot, or on an
+    edge that bleeds the safe margin inside the trim."""
+    def inset(edge: str) -> float:
+        return config.bleed_mm + config.safe_margin_mm if edge in slot.bleed_edges else CAPTION_INSET_MM
+
+    drawn = drawn_rect(slot, pos, config)
+    x = drawn.right - inset("right") - CAPTION_WIDTH_MM
+    y = drawn.top + inset("top") if pos.caption == "top-right" else drawn.bottom - inset("bottom") - CAPTION_HEIGHT_MM
+    return Rect(x, y, CAPTION_WIDTH_MM, CAPTION_HEIGHT_MM)
+
+
+def static_rect(item: StaticText) -> Rect:
+    return Rect(item.x_mm, item.y_mm, item.width_mm, item.height_mm)
 
 
 def _num(v: float) -> str:
@@ -185,4 +245,90 @@ def position_problems(positions: PositionsFile, template: SlotTemplate, config: 
         for b in ids[i + 1:]:
             if slots[a].page == slots[b].page and placed[a].overlaps(placed[b]) and frozenset((a, b)) not in listed:
                 problems.append(f"{a!r} and {b!r} overlap on page {slots[a].page} and are not listed in overlays")
+    return problems + _caption_problems(positions, slots, placed, config) + _static_problems(positions, slots, placed, config)
+
+
+def _caption_problems(positions: PositionsFile, slots: dict[str, ResolvedSlot], placed: dict[str, Rect],
+                      config: PrintConfig) -> list[str]:
+    problems = []
+    for slot_id in placed:
+        slot = slots[slot_id]
+        if slot.type != "image" or slot_id in LOGO_SLOTS:
+            continue
+        pos = positions.of(slot_id)
+        box, drawn = caption_rect(slot, pos, config), drawn_rect(slot, pos, config)
+        if (box.left < drawn.left - EPS or box.top < drawn.top - EPS
+                or box.right > drawn.right + EPS or box.bottom > drawn.bottom + EPS):
+            problems.append(f"the caption of {slot_id!r} does not fit inside the image")
+            continue
+        for o in positions.overlays:
+            if o.over == slot_id and o.slot in placed and box.overlaps(placed[o.slot]):
+                problems.append(f"the caption of {slot_id!r} lies under {o.slot!r}, which is listed over it; "
+                                f"give {slot_id!r} another caption corner")
+        for d in positions.decorations:
+            if slot.page in d.pages and box.overlaps(Rect(d.x_mm, d.y_mm, d.width_mm, d.height_mm)):
+                problems.append(f"the caption of {slot_id!r} lies under the decoration {d.id!r}; "
+                                f"give {slot_id!r} another caption corner")
     return problems
+
+
+def _static_problems(positions: PositionsFile, slots: dict[str, ResolvedSlot], placed: dict[str, Rect],
+                     config: PrintConfig) -> list[str]:
+    problems = []
+    for n, item in enumerate(positions.static_text):
+        r = static_rect(item)
+        if item.role not in ROLES:
+            problems.append(f"static text {item.id!r} needs a role, one of {', '.join(ROLES)}; it has {item.role!r}")
+        if not _in_safe_area(r, config):
+            problems.append(f"static text {item.id!r} is outside the safe area ({_num(config.safe_margin_mm)} mm inside the "
+                            f"trim): x {_num(r.left)} to {_num(r.right)}, y {_num(r.top)} to {_num(r.bottom)}")
+        for slot_id, other in placed.items():
+            if slots[slot_id].page == item.page and r.overlaps(other):
+                problems.append(f"static text {item.id!r} overlaps {slot_id!r} on page {item.page}")
+        for earlier in positions.static_text[:n]:
+            if earlier.page == item.page and r.overlaps(static_rect(earlier)):
+                problems.append(f"static text {item.id!r} overlaps {earlier.id!r} on page {item.page}")
+    return problems
+
+
+@dataclass(frozen=True)
+class BlockGap:
+    page: int
+    above: str
+    below: str
+    gap_mm: float
+
+
+def block_gaps(positions: PositionsFile, template: SlotTemplate, text_heights: dict[str, float] | None = None) -> list[BlockGap]:
+    """The white space between consecutive blocks on each page, top to bottom. A block is a slot or a piece of static
+    text; a slot listed over another is part of that one. text_heights (slot id -> measured mm) replaces a text slot's
+    box height with the height of its text."""
+    heights = text_heights or {}
+    over = {o.slot for o in positions.overlays}
+    by_page: dict[int, list[tuple[float, float, str]]] = {}
+    for pos in positions.positions:
+        slot = template.get(pos.slot)
+        if pos.slot not in over:
+            top = pos.y_mm
+            by_page.setdefault(slot.page, []).append((top, top + heights.get(pos.slot, slot.height_mm), pos.slot))
+    for item in positions.static_text:
+        by_page.setdefault(item.page, []).append((item.y_mm, item.y_mm + item.height_mm, item.id))
+    gaps = []
+    for page, blocks in sorted(by_page.items()):
+        lowest, lowest_name = None, None
+        for top, bottom, name in sorted(blocks):
+            if lowest is not None and top - lowest > EPS:
+                gaps.append(BlockGap(page, lowest_name, name, top - lowest))
+            if lowest is None or bottom > lowest:
+                lowest, lowest_name = bottom, name
+    return gaps
+
+
+def gap_problems(positions: PositionsFile, template: SlotTemplate, config: PrintConfig = PRINT,
+                 text_heights: dict[str, float] | None = None) -> list[str]:
+    """Gaps over max_block_gap_mm, other than those above a block named in free_gap_above."""
+    limit = config.max_block_gap_mm
+    return [f"page {g.page}: {round(g.gap_mm, 1):g} mm between {g.above!r} and {g.below!r}, the limit is {_num(limit)} mm"
+            for g in block_gaps(positions, template, text_heights)
+            if g.gap_mm > limit + EPS and g.below not in positions.free_gap_above]
+

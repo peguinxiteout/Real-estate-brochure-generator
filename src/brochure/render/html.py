@@ -18,14 +18,15 @@ from brochure.layout import LOGO_SLOTS
 from brochure.print_config import PRINT, PrintConfig
 from brochure.render.geometry import page_geometry_pt
 from brochure.render.pdf import crop_marks_svg, media_svg_css, page_css
-from brochure.render.positions import PositionsFile, Rect, drawn_rect, load_positions, position_problems
+from brochure.render.positions import (
+    PositionsFile, Rect, caption_rect, drawn_rect, load_positions, position_problems, static_rect,
+)
 from brochure.render.qr import qr_svg
 from brochure.slots import ResolvedSlot, SlotTemplate, load_slots
 
 TEMPLATES_DIR = Path(__file__).resolve().parents[3] / "templates"
 PX_PER_MM = 96 / 25.4  # CSS px, the unit of Page.anchors
 CAPTION = "Artist's impression"
-CAPTION_INSET_MM = 2.5  # from a slot edge that does not bleed
 TEXT_PREFIX = {"rera_number": "RERA No. "}  # template words printed before a slot's text
 LABELLED_LISTS = {"specs_list"}  # list items "label: detail" get the label in bold
 
@@ -71,12 +72,9 @@ def _box_style(r: Rect) -> str:
     return f"left: {_mm(r.left)}; top: {_mm(r.top)}; width: {_mm(r.w)}; height: {_mm(r.h)};"
 
 
-def _caption_style(slot: ResolvedSlot, config: PrintConfig) -> str:
-    """Bottom right, clear of the trim and the safe margin when the slot bleeds there."""
-    def inset(edge: str) -> str:
-        return _mm(config.bleed_mm + config.safe_margin_mm if edge in slot.bleed_edges else CAPTION_INSET_MM)
-
-    return f"right: {inset('right')}; bottom: {inset('bottom')};"
+def _caption_style(box: Rect, drawn: Rect) -> str:
+    """The caption's box, relative to the slot's drawn box."""
+    return _box_style(Rect(box.x - drawn.x, box.y - drawn.y, box.w, box.h))
 
 
 def _colours(brand: BrandKit) -> dict[str, str]:
@@ -125,7 +123,7 @@ def _slot_view(slot: ResolvedSlot, template: Template, page_fills: dict, tags: d
             **view, "kind": "image", "src": (image_dir / fill.image_path).resolve().as_uri(),
             "object_position": f"{x:.2f}% {y:.2f}%",
             "caption": CAPTION if tag is not None and tag.kind == "render" else "",
-            "caption_style": _caption_style(slot, config),
+            "caption_style": _caption_style(caption_rect(slot, pos, config), rect),
         }
     if slot.type == "qr":
         data = fill.qr_data if fill is not None else None
@@ -150,7 +148,11 @@ def build_html(spec: BrochureSpec, brand_kit: BrandKit, image_tags: list[ImageTa
     for number, page in enumerate(spec.pages, start=1):
         slots = [s for s in template.slots.slots if s.page == number]
         views = [_slot_view(s, template, page.slots, tags, image_dir, brand_kit, brand_dir, config) for s in slots]
-        pages.append({"number": number, "slots": views})
+        views += [{"id": f"static-{t.id}", "style": _box_style(static_rect(t)), "kind": "text",
+                   **_text_view(t.id, t.text, t.role)} for t in template.positions.static_text if t.page == number]
+        decorations = [{"id": d.id, "style": _box_style(Rect(d.x_mm, d.y_mm, d.width_mm, d.height_mm))}
+                       for d in template.positions.decorations if number in d.pages]
+        pages.append({"number": number, "slots": views, "decorations": decorations})
     title = next((f.text for p in spec.pages for sid, f in p.slots.items() if sid == "cover_title" and f.text), "")
     env = Environment(loader=FileSystemLoader(template.directory), autoescape=True, undefined=StrictUndefined,
                       trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True)
@@ -168,11 +170,10 @@ def build_html(spec: BrochureSpec, brand_kit: BrandKit, image_tags: list[ImageTa
     )
 
 
-def text_overflow_issues(page_anchors: list[dict], spec: BrochureSpec, slots: SlotTemplate,
-                         config: PrintConfig = PRINT) -> list[QAIssue]:
-    """A render.text_overflow warning, routed to the copywriter, for each filled text slot whose text runs below the
-    slot's height (by more than config.text_overflow_tolerance_mm). page_anchors[i] is Page.anchors of page i + 1."""
-    issues = []
+def text_heights(page_anchors: list[dict], spec: BrochureSpec, slots: SlotTemplate) -> dict[str, float]:
+    """slot id -> height in mm of the text of each filled text slot, from its start and end marks on the laid-out page.
+    page_anchors[i] is Page.anchors of page i + 1."""
+    heights = {}
     for number, (page, anchors) in enumerate(zip(spec.pages, page_anchors), start=1):
         for slot in slots.slots:
             fill = page.slots.get(slot.id)
@@ -181,10 +182,20 @@ def text_overflow_issues(page_anchors: list[dict], spec: BrochureSpec, slots: Sl
             start, end = anchors.get(f"start-{slot.id}"), anchors.get(f"end-{slot.id}")
             if start is None or end is None:
                 raise RuntimeError(f"the laid-out page {number} has no start and end marks for text slot {slot.id!r}")
-            height = (end[1] - start[1]) / PX_PER_MM
-            if height > slot.height_mm + config.text_overflow_tolerance_mm:
-                issues.append(QAIssue(
-                    check="render.text_overflow", page=number, severity="warning", route_to="copywriter",
-                    note=f"{slot.id}: the text is {height:.0f} mm tall but the slot is {slot.height_mm:g} mm; shorten it",
-                ))
+            heights[slot.id] = (end[1] - start[1]) / PX_PER_MM
+    return heights
+
+
+def text_overflow_issues(page_anchors: list[dict], spec: BrochureSpec, slots: SlotTemplate,
+                         config: PrintConfig = PRINT) -> list[QAIssue]:
+    """A render.text_overflow warning, routed to the copywriter, for each filled text slot whose text runs below the
+    slot's height (by more than config.text_overflow_tolerance_mm). page_anchors[i] is Page.anchors of page i + 1."""
+    issues = []
+    for slot_id, height in text_heights(page_anchors, spec, slots).items():
+        slot = slots.get(slot_id)
+        if height > slot.height_mm + config.text_overflow_tolerance_mm:
+            issues.append(QAIssue(
+                check="render.text_overflow", page=slot.page, severity="warning", route_to="copywriter",
+                note=f"{slot.id}: the text is {height:.0f} mm tall but the slot is {slot.height_mm:g} mm; shorten it",
+            ))
     return issues

@@ -4,11 +4,12 @@ import pytest
 
 from brochure.contracts.spec import BrochureSpec, PageSpec, SlotFill
 from brochure.pipeline.stubs import load_sample_data
-from brochure.render.html import PX_PER_MM, text_overflow_issues
+from brochure.render.html import PX_PER_MM, text_heights, text_overflow_issues
 from brochure.render.pdf import render_brochure
 from tests.support import sample_state
 
 TEMPLATE = load_sample_data().template
+INTRO_MM = TEMPLATE.get("overview_intro").height_mm
 
 
 def anchors(slot_id: str, height_mm: float, top_px: float = 100.0) -> dict:
@@ -24,26 +25,33 @@ def spec_with(page2: dict[str, SlotFill]) -> BrochureSpec:
 def test_text_within_its_slot_height_is_not_reported():
     spec = spec_with({"overview_intro": SlotFill(text="x")})
     pages = [{} for _ in range(8)]
-    pages[1] = anchors("overview_intro", 70)  # the slot is 70 mm high
+    pages[1] = anchors("overview_intro", INTRO_MM)
     assert text_overflow_issues(pages, spec, TEMPLATE) == []
 
 
 def test_text_taller_than_its_slot_is_a_warning_for_the_copywriter_on_its_page():
     spec = spec_with({"overview_intro": SlotFill(text="x"), "overview_headline": SlotFill(text="y")})
     pages = [{} for _ in range(8)]
-    pages[1] = {**anchors("overview_intro", 82.4), **anchors("overview_headline", 9, top_px=600)}
+    pages[1] = {**anchors("overview_intro", INTRO_MM + 12.4), **anchors("overview_headline", 9, top_px=600)}
     issues = text_overflow_issues(pages, spec, TEMPLATE)
     assert len(issues) == 1
     issue = issues[0]
     assert (issue.check, issue.page, issue.severity, issue.route_to) == ("render.text_overflow", 2, "warning", "copywriter")
-    assert "overview_intro" in issue.note and "82 mm" in issue.note and "70 mm" in issue.note
+    assert "overview_intro" in issue.note and f"{INTRO_MM + 12.4:.0f} mm" in issue.note and f"{INTRO_MM:g} mm" in issue.note
 
 
 def test_a_fraction_of_a_millimetre_over_is_rounding_not_overflow():
     spec = spec_with({"overview_intro": SlotFill(text="x")})
     pages = [{} for _ in range(8)]
-    pages[1] = anchors("overview_intro", 70.3)
+    pages[1] = anchors("overview_intro", INTRO_MM + 0.3)
     assert text_overflow_issues(pages, spec, TEMPLATE) == []
+
+
+def test_text_heights_gives_the_measured_height_of_each_filled_text_slot():
+    spec = spec_with({"overview_intro": SlotFill(text="x"), "overview_img": SlotFill(image_path="a.jpg")})
+    pages = [{} for _ in range(8)]
+    pages[1] = anchors("overview_intro", 16.5)
+    assert text_heights(pages, spec, TEMPLATE) == {"overview_intro": pytest.approx(16.5)}
 
 
 def test_a_text_slot_without_its_marks_is_an_error_in_the_renderer():

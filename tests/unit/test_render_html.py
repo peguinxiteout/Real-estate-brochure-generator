@@ -14,7 +14,7 @@ from brochure.llm import FakeLLM
 from brochure.pipeline.real import real_layout_step
 from brochure.pipeline.stubs import SAMPLE_RERA_URL, load_sample_data, stub_agents
 from brochure.render.html import build_html, object_position
-from brochure.render.positions import drawn_rect, load_positions
+from brochure.render.positions import caption_rect, drawn_rect, load_positions
 from brochure.render.qr import qr_svg
 from tests.support import ROOT, sample_state
 
@@ -293,3 +293,53 @@ def test_every_text_slot_carries_start_and_end_marks_for_measuring(tree, data):
             node = tree.by_id(f"slot-{slot.id}")
             ids = [n.attrs.get("id") for n in node.iter() if n.attrs.get("id")]
             assert ids[0] == f"start-{slot.id}" and ids[-1] == f"end-{slot.id}", slot.id
+
+
+@pytest.mark.parametrize("page, title", [(3, "Location"), (4, "Amenities"), (5, "Floor plans"), (6, "Specifications")])
+def test_the_section_titles_are_static_text_in_the_heading_style_on_their_pages(tree, page, title):
+    sheet = tree.by_id(f"page-{page}")
+    found = [n for n in sheet.find_all(cls="role-heading") if squash(n.text()) == title]
+    assert len(found) == 1 and "text" in found[0].attrs["class"].split()
+
+
+def test_static_text_is_drawn_at_its_box_and_can_be_measured(tree):
+    items = load_positions(TEMPLATE_DIR / "positions.json").static_text
+    assert items
+    for item in items:
+        node = tree.by_id(f"slot-static-{item.id}")
+        assert node.parent.attrs["id"] == f"page-{item.page}"
+        style = squash(node.attrs["style"])
+        for prop, value in (("left", item.x_mm), ("top", item.y_mm), ("width", item.width_mm), ("height", item.height_mm)):
+            assert f"{prop}: {value:g}mm" in style, (item.id, prop)
+        ids = [n.attrs.get("id") for n in node.iter() if n.attrs.get("id")]
+        assert ids == [f"start-static-{item.id}", f"end-static-{item.id}"]
+
+
+def test_the_qr_label_is_on_the_back_cover_in_small_print(tree):
+    labels = [n for n in tree.by_id("page-8").find_all(cls="role-small-print")
+              if squash(n.text()) == "Scan for RERA registration details"]
+    assert len(labels) == 1
+
+
+def test_a_caption_is_drawn_at_the_box_the_positions_rule_checks(tree, data):
+    positions = load_positions(TEMPLATE_DIR / "positions.json")
+    for sid in ("hero", "overview_img", "amenity_img_a"):
+        slot, pos = data.template.get(sid), positions.of(sid)
+        drawn, box = drawn_rect(slot, pos), caption_rect(slot, pos)
+        style = squash(tree.by_id(f"slot-{sid}").find_all(cls="caption")[0].attrs["style"])
+        assert f"left: {box.left - drawn.left:g}mm" in style and f"top: {box.top - drawn.top:g}mm" in style, sid
+        assert f"width: {box.w:g}mm" in style and f"height: {box.h:g}mm" in style, sid
+
+
+def test_the_decorations_are_drawn_from_the_positions_file(tree):
+    positions = load_positions(TEMPLATE_DIR / "positions.json")
+    drawn = {(s.attrs["id"], c) for s in tree.root.find_all("section", cls="sheet") for n in s.find_all(cls="deco")
+             for c in n.attrs["class"].split() if c != "deco"}
+    assert drawn == {(f"page-{p}", d.id) for d in positions.decorations for p in d.pages}
+    band = next(d for d in positions.decorations if d.id == "cover-band")
+    node = tree.by_id("page-1").find_all(cls="cover-band")[0]
+    assert f"top: {band.y_mm:g}mm" in squash(node.attrs["style"])
+
+
+def test_the_configuration_list_has_the_normal_list_style():
+    assert "config_table" not in (TEMPLATE_DIR / "brochure.css").read_text(encoding="utf-8")

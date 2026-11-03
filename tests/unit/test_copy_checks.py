@@ -13,7 +13,7 @@ def check(text, budget=500):
 
 
 def test_plain_copy_within_the_budget_has_no_problems():
-    assert check("Light, air and green space, a short walk from the metro.") == []
+    assert check("Light, air and green space, close to the metro.") == []
 
 
 def test_text_longer_than_the_budget_fails_with_its_length_and_the_limit():
@@ -96,7 +96,7 @@ def test_an_invented_place_name_fails_and_the_reason_names_it():
 
 
 @pytest.mark.parametrize("text", [
-    "A short walk to Meridian Metro Station",   # a landmark
+    "Close to Meridian Metro Station",   # a landmark
     "Near Lakeside Hospital and Orchard International School",
     "On Meridian Park Road in Pune, Maharashtra",   # the location and the RERA state
     "Aurelia Heights has a Clubhouse",         # the project name; an amenity
@@ -290,7 +290,7 @@ def test_the_word_limit_follows_the_constant(monkeypatch):
 
 # --- more banned phrases: the travel-time and location clichés -------------------------------------------------------------
 
-@pytest.mark.parametrize("phrase", ["heart of", "prime location", "minutes from", "minutes away", "walking distance", "steps from", "stone's throw"])
+@pytest.mark.parametrize("phrase", ["heart of", "prime location", "minutes from", "minutes away", "walking distance", "short walk", "steps from", "stone's throw"])
 def test_each_location_cliche_is_rejected_and_the_reason_names_it(phrase):
     reasons = check(f"Homes in the area, {phrase} the metro")
     assert any("superlative" in r and phrase in r for r in reasons)

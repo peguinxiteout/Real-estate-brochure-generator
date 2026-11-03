@@ -17,7 +17,9 @@ from brochure.llm import FakeLLM
 from brochure.pipeline.real import real_layout_step
 from brochure.pipeline.stubs import load_sample_data, stub_agents
 from brochure.render.geometry import page_geometry_pt
+from brochure.render.html import PX_PER_MM, build_html, load_template, text_heights
 from brochure.render.pdf import ISSUES_FILE, render_brochure, render_with_issues
+from brochure.render.positions import block_gaps, caption_rect, gap_problems
 from tests.integration.test_blank_pdf import PX_PER_PT, Raster, as_box, assert_box, white
 from tests.support import sample_state
 from tools.make_sample_images import generate_images
@@ -197,3 +199,57 @@ def test_render_with_issues_returns_the_issues_it_writes_to_the_issues_file(samp
     pdf, pngs, issues = render_with_issues(spec, state.brand_kit, state.image_tags, images, tmp_path, brand_dir=ROOT / "sample")
     assert pdf == tmp_path / "brochure.pdf" and len(pngs) == 8
     assert [i.model_dump() for i in issues] == json.loads((tmp_path / ISSUES_FILE).read_text(encoding="utf-8")) == []
+
+
+@pytest.mark.parametrize("page, title", [(3, "Location"), (4, "Amenities"), (5, "Floor plans"), (6, "Specifications")])
+def test_each_section_page_has_its_title(page_text, page, title):
+    assert title in page_text[page - 1]
+
+
+def test_the_qr_label_is_on_the_back_cover(page_text):
+    assert "Scan for RERA registration details" in page_text[7]
+
+
+@pytest.fixture(scope="module")
+def laid_out(sample, images):
+    """The sample laid out by WeasyPrint: (template, anchors of each page, measured text height of each text slot)."""
+    from weasyprint import HTML
+
+    state, spec = sample[0], sample[1]
+    template = load_template(spec.template_id)
+    html = build_html(spec, state.brand_kit, state.image_tags, images, brand_dir=ROOT / "sample")
+    anchors = [p.anchors for p in HTML(string=html, base_url=str(template.directory)).render().pages]
+    return template, anchors, text_heights(anchors, spec, template.slots)
+
+
+def test_no_text_slot_of_the_sample_is_under_60_percent_full(laid_out):
+    template, _, heights = laid_out
+    assert heights
+    fill = {sid: h / template.slots.get(sid).height_mm for sid, h in heights.items()}
+    assert {sid: round(f, 2) for sid, f in fill.items() if f < 0.6} == {}
+
+
+def test_no_measured_gap_on_the_sample_is_over_the_limit_but_the_one_above_the_disclaimer(laid_out):
+    template, _, heights = laid_out
+    assert gap_problems(template.positions, template.slots, text_heights=heights) == []
+    assert any(g.below == "disclaimer" and g.gap_mm > 15 for g in block_gaps(template.positions, template.slots, heights))
+
+
+def test_the_static_text_fits_its_boxes(laid_out):
+    template, anchors, _ = laid_out
+    assert template.positions.static_text
+    for item in template.positions.static_text:
+        page = anchors[item.page - 1]
+        height = (page[f"end-static-{item.id}"][1] - page[f"start-static-{item.id}"][1]) / PX_PER_MM
+        assert 0 < height <= item.height_mm, (item.id, height)
+
+
+def test_the_cover_caption_is_visible_above_the_band(sample):
+    template = load_template("classic-8pp")
+    box = caption_rect(template.slots.get("hero"), template.positions.of("hero"))
+    assert box.w > 0
+    image = Image.open(sample[4][0]).convert("RGB")
+    px = 100 / 25.4
+    # just inside the top-left corner of the caption's box: its light background, not the image under it or the band
+    r, g, b = image.getpixel((round((box.left + 0.6) * px), round((box.top + 0.4) * px)))
+    assert min(r, g, b) > 190, (r, g, b)

@@ -511,7 +511,11 @@ file stops the render before WeasyPrint runs. Nothing is written to the image fi
 **Positions** (`templates/classic-8pp/positions.json`, owned by the template, not a shared contract). For every slot:
 `x_mm`, `y_mm` of the top-left corner of its trim-side box (its `slots.json` size), from the trim's top-left corner,
 y downwards; and for text slots a `role` (`title`, `heading`, `subheading`, `body`, `list`, `small-print`). Width and
-height always come from `slots.json`. `overlays` lists the slots drawn on top of another by design. `position_problems()`
+height always come from `slots.json`. `overlays` lists the slots drawn on top of another by design. An image slot may
+name its `caption` corner (`top-right`, or `bottom-right` by default). `decorations` are the colour bands behind the
+slots (the cover band, the thin top band). `static_text` is words that belong to the template and are not slots: the
+section titles "Location", "Amenities", "Floor plans" and "Specifications" on pages 3 to 6 (heading style with the gold
+rule) and "Scan for RERA registration details" under the QR code (small print). `position_problems()`
 (`src/brochure/render/positions.py`) checks, in unit tests and every time a brochure is rendered:
 
 - every slot has exactly one position and every position names a slot; text slots have a known role, others none;
@@ -523,12 +527,20 @@ height always come from `slots.json`. `overlays` lists the slots drawn on top of
 - no two slots on a page overlap (touching is allowed) except the pairs in `overlays`, and only a text, QR or logo
   slot may be listed on a non-logo image slot. A listed pair must overlap. In `classic-8pp` the four cover slots
   (`cover_logo`, `cover_title`, `cover_tagline`, `cover_rera_line`) lie on the hero. The logo is listed although it is
-  an image slot: it sits on the photo by design.
+  an image slot: it sits on the photo by design;
+- any non-logo image may turn out to be a render, so each has a caption box (`caption_rect()`, 27 x 4.5 mm, in the corner
+  its position names). The box lies inside the image and outside every slot listed over it and every decoration on the
+  page. The hero's caption is therefore top-right, above the cover band;
+- static text has a known role, lies inside the safe area and overlaps no slot and no other static text.
+
+A separate design rule, `gap_problems()`, is checked in tests on the box positions and, on the rendered sample, on the
+measured text: the white space between consecutive blocks on a page stays within `max_block_gap_mm` (15 mm, in
+`print_config.py`), except above a block named in `free_gap_above` (the disclaimer, which sits at the foot of page 8).
 
 **Design** (`brochure.html.j2` + `brochure.css`; option "clean and plain"). Each slot is an absolutely positioned box
 in mm. Headings are Inter SemiBold (title Inter Bold, 30 pt), body Open Sans 10 pt with 1.5 line spacing, small print
 7.5 pt. The brand kit's `primary` colour (navy `#1F3A5F` in the sample) is used for the cover band behind the title,
-a thin band bleeding off the top of pages 3, 4, 5, 7 and 8, headings, list labels and the configuration lines; the
+a thin band bleeding off the top of pages 3, 4, 5, 7 and 8, headings and list labels; the
 `accent` colour (gold `#C8A24A`) for the line on top of the cover band, the cover tagline, the short rule under each
 heading, the list markers and the rule above the disclaimer. If a kit has no colours named `primary` and `accent`, the
 first and second colours are used. Brand colours and font families reach the CSS as variables.
@@ -537,8 +549,8 @@ first and second colours are used. Brand colours and font families reach the CSS
   (`ValueError`); there is no fallback to a system or web font.
 - Images fill their slot (`object-fit: cover`). `object-position` is computed from the tag's `focal_point` so the
   crop is centred on it, as far as the image's edges allow (a plain `x% y%` would not centre it).
-- Renders (`kind` `render`): an "Artist's impression" caption in the bottom-right corner, 6.5 pt body font on a light
-  background. On an edge that bleeds, the caption sits 13 mm in from the drawn edge (bleed + safe margin).
+- Renders (`kind` `render`): an "Artist's impression" caption at the box the positions rule checks, 6.5 pt body font on
+  a light background. On an edge that bleeds, the caption sits 13 mm in from the drawn edge (bleed + safe margin).
 - An image slot the layout left unfilled: a light neutral frame with "Image needed".
 - Text: newlines become line breaks; `list` slots become one list item per line (two columns for
   `overview_highlights` and `amenities_list`; in `specs_list` the text before ": " is set as a label). `rera_number`
@@ -573,11 +585,12 @@ Render the sample (WSL; generates `sample/images/` if any image is missing):
 
 It runs the graph with the stub brief, vision and copy (no LLM), the real layout and the real renderer, stops at human
 review, and prints the PDF path, the PNG paths and every warning (the layout's, then any text overflow). A copy of the
-8 PNGs (100 DPI, trim size, 0.32 MB in all) is committed in `sample/pages/` for QA critic work. The integration tests render the
+8 PNGs (100 DPI, trim size, 0.33 MB in all) is committed in `sample/pages/` for QA critic work. The integration tests render the
 sample and check the page count, every page's boxes, that only Inter and Open Sans are embedded, the extracted text
 (RERA number on pages 1 and 8, project name on page 1, disclaimer on page 8, "Artist's impression" on exactly the
-pages with a render), the 8 PNGs (trim size within 1 px, no crop-mark black in the corners) and that the hero reaches
-the bleed edge on page 1 (on a MediaBox rendering of page 1 that the test makes itself):
+pages with a render, the section titles, the QR label), the 8 PNGs (trim size within 1 px, no crop-mark black in the
+corners), that the hero reaches the bleed edge on page 1 (on a MediaBox rendering of page 1 that the test makes itself),
+that the cover caption shows, that no text slot of the sample is under 60% full, and the measured gaps:
 
 ```
 ~/.venvs/brochure/bin/python -m pytest tests/integration/test_render_brochure.py -rs
@@ -702,7 +715,7 @@ placeholder (`P99999000000 (SAMPLE)`).
 | `sample/brief_sparse.json` | The same project with a form that leaves out the RERA number, the configurations, the possession date and the tone, which the prompt states in words, and the location, which the prompt does not mention. For the Brief agent. |
 | `sample/images.json` | An `ImageManifest` of 12 images with pixel sizes and the slot each is meant for. |
 | `sample/logo.svg` | The logo the brand kit points to. |
-| `sample/stub_copy.json` | Text for the eight copy slots that cannot be derived from the facts or the brand kit; used by the stub copywriter. |
+| `sample/stub_copy.json` | Text for the eight copy slots that cannot be derived from the facts or the brand kit; used by the stub copywriter. A unit test runs the real Copywriter's checks on it. |
 | `sample/image_tags.json` | An `ImageTag` for each of the 12 images, for code that runs before the Vision agent exists. |
 | `sample/images/` | Generated by `tools/make_sample_images.py`; not committed. |
 
@@ -712,7 +725,7 @@ For their intended slots, three images fail the DPI rule and one warns:
 |---|---|---|---|
 | `amenity_gym.jpg` | `amenity_img_c` | 230.7 | fail |
 | `floorplan_3bhk.jpg` | `plan_img_b` | 207.8 | fail |
-| `developer_office.jpg` | `about_img` | 190.5 | fail |
+| `developer_office.jpg` | `about_img` | 95.2 | fail |
 | `amenity_clubhouse.jpg` | `amenity_img_b` | 288.6 | warn |
 
 The other eight pass. Having bad images on purpose lets the QA and Layout code be tested against failures without
@@ -762,6 +775,7 @@ Full rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
 - The copy keeps curly quotes and apostrophes and en and em dashes; Inter and Open Sans have those glyphs. A character the bundled fonts lack would fall back to a system font; the integration test only checks the sample. Typographic spaces and hyphens are normalised to plain ones.
 - The Copywriter does not see the brief's free-text prompt, so the user's emphasis (for example "the short walk to the station") does not reach the copy.
 - The PDF is RGB. CMYK conversion with Ghostscript is not built.
-- The slot heights are fixed, so short copy leaves gaps (for example between `overview_intro` and `overview_highlights`).
+- The text slot heights are sized to the sample's text plus about 20%, and the char budgets were not changed, so text near its budget no longer fits on most text slots: it is reported as `render.text_overflow`. A verbatim slot cannot be fixed by the copywriter, so its overflow ends up in `spec.qa_warnings`.
+- Pages 2, 5 and 7 leave white space at the foot: their images are as large as the sample's pixels allow at 300 DPI, or as the design keeps them (`about_img` is 88 mm wide; floor plans stay square).
 - WeasyPrint is pinned to `weasyprint==70.0` because the BleedBox finisher edits WeasyPrint's PDF objects (pydyf)
   directly. Check the boxes again (the integration tests) before moving to another version.

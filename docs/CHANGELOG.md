@@ -2,6 +2,55 @@
 
 Newest entry first.
 
+## 2026-11-03: classic-8pp design pass
+
+**Shared contract: `templates/classic-8pp/slots.json` changed. Please review.** No slot added or removed, no char budget
+or bleed edge changed. Text slots under 60% full on the sample get the measured text height + about 20%, rounded up:
+
+| Slot | Page | Old (w x h mm) | New (w x h mm) |
+|---|---|---|---|
+| `cover_title` | 1 | 150 x 30 | 150 x 14 |
+| `cover_tagline` | 1 | 150 x 20 | 150 x 7 |
+| `cover_rera_line` | 1 | 150 x 8 | 150 x 5 |
+| `overview_headline` | 2 | 180 x 20 | 180 x 14 |
+| `overview_intro` | 2 | 180 x 70 | 180 x 19 |
+| `overview_highlights` | 2 | 180 x 40 | 180 x 17 |
+| `location_address` | 3 | 180 x 14 | 180 x 7 |
+| `amenities_list` | 4 | 180 x 50 | 180 x 33 |
+| `amenities_blurb` | 4 | 180 x 30 | 180 x 7 |
+| `config_table` | 5 | 180 x 50 | 180 x 17 |
+| `plan_note` | 5 | 180 x 20 | 180 x 5 |
+| `specs_list` | 6 | 88 x 120 | 88 x 68 |
+| `about_headline` | 7 | 180 x 20 | 180 x 14 |
+| `about_text` | 7 | 180 x 60 | 180 x 19 |
+| `disclaimer` | 8 | 180 x 40 | 180 x 13 |
+
+Image slots take the freed space, as far as the sample's images stay at 300 DPI or above (so their `min_px` grow):
+
+| Slot | Page | Old (w x h mm) | New (w x h mm) |
+|---|---|---|---|
+| `overview_img` | 2 | 210 x 120 | 210 x 123 |
+| `amenity_img_a` | 4 | 180 x 90 | 180 x 97 |
+| `spec_banner` | 6 | 210 x 80 | 210 x 81 |
+| `spec_img` | 6 | 88 x 120 | 88 x 126 |
+| `about_img` | 7 | 85 x 60 | 88 x 120 |
+
+**Effect to review:** the char budgets are unchanged, so text near its budget no longer fits most of these text slots
+and becomes `render.text_overflow`. For example `overview_intro` holds about 310 characters in 19 mm against a budget of
+600.
+
+- Section titles on pages 3 to 6 and the QR label on page 8 are static template text (`static_text` in `positions.json`),
+  not slots, with their own rules. The configuration list uses the normal list style.
+- Caption rule: a caption box lies inside its image and outside every slot listed over the image and every decoration.
+  The cover bands moved from the CSS to `decorations` in `positions.json` so the rule can see them. The hero's caption is
+  top-right, above the cover band, which now starts at 240 mm instead of 210 mm.
+- `positions.json` re-flowed (page 3 now runs title, map, photo, address, landmarks). New rule `gap_problems()`: at most
+  `max_block_gap_mm` (15 mm, new in `print_config.py`) between consecutive blocks, except above the disclaimer.
+- `sample/stub_copy.json` now passes the Copywriter's checks, enforced by a unit test: no "short walk", and
+  `about_headline` is "About Kestrel Urbanscapes", with no company history. "short walk" joins the banned phrases and
+  the prompt.
+- `text_heights()` is split out of the overflow check, for measuring fill. `sample/pages/` regenerated.
+
 ## 2026-11-03: classic-8pp review fixes
 
 - `pyproject.toml` pins `weasyprint==70.0`: the BleedBox finisher relies on WeasyPrint's PDF internals.
