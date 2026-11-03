@@ -301,7 +301,7 @@ def test_the_review_question_has_the_same_keys_every_time():
     run = Run()
     run.start()
     pages = [f"FAKE-NOT-RENDERED/page-{n}.png" for n in range(1, 9)]
-    first = {"ask": "review", "pdf_path": "FAKE-NOT-RENDERED/brochure.pdf", "page_images": pages, "error": None}
+    first = {"ask": "review", "pdf_path": "FAKE-NOT-RENDERED/brochure.pdf", "page_images": pages, "error": None, "blocking": []}
     assert run.interrupt_value == first
     run.resume("maybe")
     assert run.interrupt_value == {**first, "error": "answer 'approved' or 'changes_requested', not 'maybe'"}

@@ -11,6 +11,7 @@ from brochure.contracts.state import PipelineState
 from brochure.pipeline.brief import brief_step
 from brochure.pipeline.agents import Agents, RenderResult
 from brochure.layout import LOGO_SLOTS
+from brochure.legal import copy_needed
 from brochure.slots import SlotTemplate, load_slots
 from brochure.verbatim import over_budget_issues, verbatim_copy
 
@@ -101,7 +102,7 @@ def layout_spec(
         elif slot.id == "rera_number":  # a legal fact: it comes from the facts, not from the copy
             fills[slot.page][slot.id] = SlotFill(text=state.project_facts.rera_number)
         elif slot.type == "text":  # a missing copy is visible, so a reviewer sees the gap
-            fills[slot.page][slot.id] = SlotFill(text=state.slot_copy.get(slot.id, f"[copy needed: {slot.id}]"))
+            fills[slot.page][slot.id] = SlotFill(text=state.slot_copy.get(slot.id, copy_needed(slot.id)))
         elif slot.type == "qr":
             fills[slot.page][slot.id] = SlotFill(qr_data=SAMPLE_RERA_URL)
     pages = [PageSpec(layout_id=f"{state.template_id}-p{n}", slots=fills[n]) for n in sorted(fills)]

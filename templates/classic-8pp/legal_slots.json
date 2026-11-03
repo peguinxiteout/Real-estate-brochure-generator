@@ -1,0 +1,4 @@
+{
+  "template_id": "classic-8pp",
+  "legal_slots": ["cover_rera_line", "rera_number", "disclaimer", "rera_qr"]
+}

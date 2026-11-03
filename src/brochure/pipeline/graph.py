@@ -6,6 +6,7 @@ from langgraph.types import Command, interrupt
 
 from brochure.contracts.qa import QAIssue
 from brochure.contracts.state import PipelineState
+from brochure.legal import blocking_for, is_lost_text
 from brochure.pipeline.agents import Agents
 from brochure.pipeline.brief import apply_answers, missing_fields
 
@@ -76,6 +77,8 @@ def build_graph(agents: Agents, checkpointer, llm):
 
     def qa(state: PipelineState):
         issues, qa_round = agents.qa(state, llm), state.qa_round + 1
+        # lost text is what blocks approval, so a QA step that forgets to pass it on must not be able to unblock it
+        issues = [*[i for i in state.qa_issues if is_lost_text(i) and i not in issues], *issues]
         update = {"qa_issues": issues, "qa_round": qa_round}
         if issues and qa_next(issues, qa_round) == "human_review":
             # shown to the reviewer, after the layout's own findings (the layout rebuilds the spec on every pass)
@@ -86,16 +89,27 @@ def build_graph(agents: Agents, checkpointer, llm):
         return qa_next(state.qa_issues, state.qa_round)
 
     def human_review(state: PipelineState) -> Command[Literal["export", "layout"]]:
-        """Pause for a person. Resume with "approved" or "changes_requested"."""
-        question = {"ask": "review", "pdf_path": state.pdf_path, "page_images": state.page_images, "error": None}
+        """Pause for a person. Resume with "approved" or "changes_requested". "approved" is refused, and the question
+        asked again, while legal content is missing from the print file."""
+        blocking = blocking_for(state.spec)
+        question = {
+            "ask": "review", "pdf_path": state.pdf_path, "page_images": state.page_images, "error": None,
+            "blocking": [{"check": i.check, "page": i.page, "note": i.note} for i in blocking],
+        }
         decision = interrupt(question)
-        while decision not in ("approved", "changes_requested"):
-            decision = interrupt({**question, "error": f"answer 'approved' or 'changes_requested', not {decision!r}"})
-        if decision == "approved":
-            return Command(goto="export", update={"approval_status": "approved"})
+        while decision != "changes_requested":
+            if decision == "approved":
+                if not blocking:
+                    return Command(goto="export", update={"approval_status": "approved"})
+                error = f"can't approve: {blocking[0].note}"
+            else:
+                error = f"answer 'approved' or 'changes_requested', not {decision!r}"
+            decision = interrupt({**question, "error": error})
         return Command(goto="layout", update={"approval_status": "pending", "qa_round": 0})
 
     def export(state: PipelineState):
+        if blocking := blocking_for(state.spec):
+            raise RuntimeError(f"can't export: {blocking[0].note}")
         agents.export(state, llm)
         return {}
 

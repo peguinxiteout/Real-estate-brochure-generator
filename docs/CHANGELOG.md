@@ -2,6 +2,25 @@
 
 Newest entry first.
 
+## 2026-11-03: approval is blocked while legal text is missing from the PDF
+
+**For the frontend: the review question gained a `blocking` key.** It is always present, an empty list when nothing
+blocks, otherwise a list of `{"check", "page", "note"}`. `"approved"` is refused while it is not empty: the question comes
+back with `"error": "can't approve: <first blocking note>"`. `"changes_requested"` still works. See "What the caller sees"
+in the README. No other key changed.
+
+- Legal slots are listed in the new `templates/classic-8pp/legal_slots.json`: `cover_rera_line`, `rera_number`,
+  `disclaimer`, `rera_qr`. `slots.json` did not change.
+- `brochure.legal.blocking_issues()` is the one place that decides: legal text off the page (`render.text_overflow`,
+  severity `error`) and an empty legal slot (new check `legal.slot_empty`: no fill, blank text, the `[copy needed: ...]`
+  placeholder, or no QR data).
+- Export raises if it is ever reached with blocking issues.
+- The graph's QA node keeps lost-text issues even if the QA step drops them, so the real QA critic cannot unblock approval
+  by forgetting to pass them on.
+- The check relies on `render.text_overflow` notes starting with the slot id, because `QAIssue` has no slot field. A test
+  holds the two together.
+- No contract change.
+
 ## 2026-11-03: overflow never stops the render; verbatim text over budget is reported
 
 - Text that runs off its page no longer raises. WeasyPrint keeps 8 pages but drops the end of the text and the slot's

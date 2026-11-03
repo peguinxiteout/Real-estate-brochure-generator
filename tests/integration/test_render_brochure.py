@@ -24,7 +24,7 @@ from brochure.render.html import PX_PER_MM, build_html, load_template, text_heig
 from brochure.render.pdf import ISSUES_FILE, render_brochure, render_with_issues
 from brochure.render.positions import block_gaps, caption_rect, gap_problems
 from tests.integration.test_blank_pdf import PX_PER_PT, Raster, as_box, assert_box, white
-from tests.support import Run, sample_state
+from tests.support import Run, counted, filler_text, sample_state
 from tools.make_sample_images import generate_images
 
 pytestmark = pytest.mark.integration
@@ -308,3 +308,39 @@ def test_copywriter_text_off_the_page_is_routed_to_the_copywriter(sample, images
     _, _, issues = render_with_issues(spec.model_copy(update={"pages": pages}), state.brand_kit, state.image_tags, images,
                                       tmp_path, brand_dir=ROOT / "sample")
     assert [(i.check, i.page, i.route_to) for i in issues] == [("render.text_overflow", 2, "copywriter")]
+
+
+# --- legal text off the page: the reviewer cannot approve ------------------------------------------------------------
+
+
+@pytest.fixture
+def lost_disclaimer_run(tools_present, images, tmp_path):
+    """A whole graph run, real renderer, with a disclaimer so long that its end is not printed."""
+    state = sample_state(briefed=False)
+    brand = state.brand_kit.model_copy(update={"disclaimer": "All images are for illustration only. " * 200})
+    state = state.model_copy(update={"image_dir": str(images), "brand_kit": brand})
+    agents, calls = counted(replace(stub_agents(), renderer=RealRenderer(tmp_path, ROOT / "sample")))
+    run = Run(agents, thread_id="lost")
+    run.start(state)
+    return run, calls
+
+
+def test_a_disclaimer_off_the_page_blocks_approval_and_export(lost_disclaimer_run):
+    run, calls = lost_disclaimer_run
+    [item] = run.interrupt_value["blocking"]
+    assert (item["check"], item["page"]) == ("render.text_overflow", 8) and item["note"].startswith("disclaimer: ")
+    run.resume("approved")
+    assert run.paused_at == ("human_review",) and calls["export"] == 0
+    assert run.interrupt_value["error"] == f"can't approve: {item['note']}"
+
+
+def test_a_full_budget_disclaimer_does_not_block_approval(tools_present, images, tmp_path):
+    state = sample_state(briefed=False)
+    brand = state.brand_kit.model_copy(update={"disclaimer": filler_text(500)})
+    state = state.model_copy(update={"image_dir": str(images), "brand_kit": brand})
+    agents, calls = counted(replace(stub_agents(), renderer=RealRenderer(tmp_path, ROOT / "sample")))
+    run = Run(agents, thread_id="full")
+    run.start(state)
+    assert run.interrupt_value["blocking"] == []
+    run.resume("approved")
+    assert calls["export"] == 1
