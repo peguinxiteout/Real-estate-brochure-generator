@@ -2,6 +2,48 @@
 
 Newest entry first.
 
+## 2026-11-03: classic-8pp text slots fit their full budgets
+
+**Shared contract: `templates/classic-8pp/slots.json` changed. Please review.** Rule: every text slot's height fits its
+full `char_budget`, enforced by `tests/integration/test_full_budget_fit.py`. Only these 16 values changed.
+
+Copywriter slots keep their heights; the budget drops to the largest multiple of 10 that fits. `max_words` follows.
+
+| Slot | Page | Height (mm) | `char_budget` | `max_words` |
+|---|---|---|---|---|
+| `cover_tagline` | 1 | 7 | 90 -> 70 | 12 -> 10 |
+| `overview_headline` | 2 | 14 | 60 -> 50 | 8 -> 7 |
+| `overview_intro` | 2 | 19 | 600 -> 310 | 85 -> 44 |
+| `overview_highlights` | 2 | 17 | 240 -> 120 | 34 -> 17 |
+| `amenities_blurb` | 4 | 7 | 250 -> 100 | 35 -> 14 |
+| `plan_note` | 5 | 5 | 160 -> 140 | 22 -> 20 |
+| `about_headline` | 7 | 14 | 60 -> 50 | 8 -> 7 |
+
+Verbatim slots keep their budgets; the height rises until full-budget text fits.
+
+| Slot | Page | `char_budget` | Height (mm) |
+|---|---|---|---|
+| `cover_title` | 1 | 40 | 14 -> 24 |
+| `location_address` | 3 | 120 | 7 -> 12 |
+| `amenities_list` | 4 | 300 | 33 -> 61 |
+| `config_table` | 5 | 400 | 17 -> 114 |
+| `specs_list` | 6 | 700 | 68 -> 115 |
+| `about_text` | 7 | 450 | 19 -> 27 |
+| `rera_number` | 8 | 60 | 8 -> 11 |
+| `contact_block` | 8 | 200 | 30 -> 32 |
+| `disclaimer` | 8 | 500 | 13 -> 18 |
+
+`cover_rera_line` (5 mm) and `location_landmarks` (50 mm) already fit and did not change: `location_landmarks` fits
+because it is now set in two columns (CSS).
+
+- `positions.json` re-flowed; the disclaimer stays at the foot of page 8 (269 to 287 mm). Page 5 now runs title, plans,
+  note, configurations, so a short list leaves no gap above another block. The cover band starts at 235 mm.
+- A one-line `cover_title` sits at the foot of its slot, on the tagline.
+- `sample/stub_copy.json` shortened to fit: `overview_highlights` and `amenities_blurb`.
+- The integration test that no text slot of the sample is under 60% full now covers Copywriter slots only: a verbatim
+  slot's height now follows its budget, not the sample.
+- `sample/pages/` regenerated.
+
 ## 2026-11-03: classic-8pp design pass
 
 **Shared contract: `templates/classic-8pp/slots.json` changed. Please review.** No slot added or removed, no char budget

@@ -177,7 +177,7 @@ the copywriter. Facts are strict, wording is free.
 
 | Written by the Copywriter (char budget) | Filled by code from the facts and the brand kit (char budget) |
 |---|---|
-| `cover_tagline` (90, 12 words), `overview_headline` (60, 8), `overview_intro` (600, 85), `overview_highlights` (240, 34), `amenities_blurb` (250, 35), `plan_note` (160, 22), `about_headline` (60, 8) | `cover_title` (40; the project name), `cover_rera_line` (60), `rera_number` (60), `location_address` (120), `location_landmarks` (400), `amenities_list` (300), `config_table` (400), `specs_list` (700), `about_text` (450), `contact_block` (200), `disclaimer` (500) |
+| `cover_tagline` (70, 10 words), `overview_headline` (50, 7), `overview_intro` (310, 44), `overview_highlights` (120, 17), `amenities_blurb` (100, 14), `plan_note` (140, 20), `about_headline` (50, 7) | `cover_title` (40; the project name), `cover_rera_line` (60), `rera_number` (60), `location_address` (120), `location_landmarks` (400), `amenities_list` (300), `config_table` (400), `specs_list` (700), `about_text` (450), `contact_block` (200), `disclaimer` (500) |
 
 The pipeline step (`pipeline/real.py`) returns the verbatim slots plus whatever the Copywriter wrote as `slot_copy`.
 
@@ -553,13 +553,19 @@ first and second colours are used. Brand colours and font families reach the CSS
   a light background. On an edge that bleeds, the caption sits 13 mm in from the drawn edge (bleed + safe margin).
 - An image slot the layout left unfilled: a light neutral frame with "Image needed".
 - Text: newlines become line breaks; `list` slots become one list item per line (two columns for
-  `overview_highlights` and `amenities_list`; in `specs_list` the text before ": " is set as a label). `rera_number`
+  `overview_highlights`, `amenities_list` and `location_landmarks`; in `specs_list` the text before ": " is set as a label). `rera_number`
   is printed after "RERA No.". Text boxes never clip.
 - Logos: the brand kit's `logo_path` (SVG or PNG, relative to `brand_dir`, the `sample/` folder in the pipeline) when
   the file exists, otherwise the company name in the heading font. Text inside an SVG logo must name a bundled family,
   or WeasyPrint embeds a system font; the sample logo's text is set in Inter.
 - QR: the `qrcode` package, vector SVG (one path, no raster), error correction M, quiet zone of 4 modules, at the
   slot's 25 mm.
+
+**Every text slot fits its full `char_budget`.** `tests/integration/test_full_budget_fit.py` fills each text slot with
+filler of exactly `char_budget` characters (realistic words; list slots and `contact_block` in lines of the sample's
+average length), renders it with the real fonts and template, and asserts no overflow. So the budget of a Copywriter
+slot is what fits its height, and the height of a verbatim slot is what fits its budget. `location_landmarks` is set in two
+columns so its full budget fits on page 3. A one-line `cover_title` sits at the foot of its slot, on the tagline.
 
 **Text overflow.** WeasyPrint's public `Page.anchors` gives the position of every element with an `id`. Each text slot
 holds an empty start mark and end mark; the distance between them is the height of its text. Text taller than the slot
@@ -590,7 +596,7 @@ sample and check the page count, every page's boxes, that only Inter and Open Sa
 (RERA number on pages 1 and 8, project name on page 1, disclaimer on page 8, "Artist's impression" on exactly the
 pages with a render, the section titles, the QR label), the 8 PNGs (trim size within 1 px, no crop-mark black in the
 corners), that the hero reaches the bleed edge on page 1 (on a MediaBox rendering of page 1 that the test makes itself),
-that the cover caption shows, that no text slot of the sample is under 60% full, and the measured gaps:
+that the cover caption shows, that no Copywriter slot of the sample is under 60% full, and the measured gaps:
 
 ```
 ~/.venvs/brochure/bin/python -m pytest tests/integration/test_render_brochure.py -rs
@@ -775,7 +781,7 @@ Full rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
 - The copy keeps curly quotes and apostrophes and en and em dashes; Inter and Open Sans have those glyphs. A character the bundled fonts lack would fall back to a system font; the integration test only checks the sample. Typographic spaces and hyphens are normalised to plain ones.
 - The Copywriter does not see the brief's free-text prompt, so the user's emphasis (for example "the short walk to the station") does not reach the copy.
 - The PDF is RGB. CMYK conversion with Ghostscript is not built.
-- The text slot heights are sized to the sample's text plus about 20%, and the char budgets were not changed, so text near its budget no longer fits on most text slots: it is reported as `render.text_overflow`. A verbatim slot cannot be fixed by the copywriter, so its overflow ends up in `spec.qa_warnings`.
-- Pages 2, 5 and 7 leave white space at the foot: their images are as large as the sample's pixels allow at 300 DPI, or as the design keeps them (`about_img` is 88 mm wide; floor plans stay square).
+- Verbatim text is not checked against its `char_budget`. A list much longer than its budget can run off the page; WeasyPrint then loses the slot's end mark and the render stops with an error instead of reporting overflow.
+- Pages 2 and 7 leave white space at the foot: their images are as large as the sample's pixels allow at 300 DPI, or as the design keeps them (`about_img` is 88 mm wide). Short verbatim text leaves space inside its slot, because the slot fits the full budget.
 - WeasyPrint is pinned to `weasyprint==70.0` because the BleedBox finisher edits WeasyPrint's PDF objects (pydyf)
   directly. Check the boxes again (the integration tests) before moving to another version.

@@ -89,8 +89,8 @@ GOOD_COPY = {
     "overview_intro": "Aurelia Heights is a pair of residential towers in Pune with 2 and 3 BHK homes. The towers stand around a "
     "landscaped podium garden, and the plans put living rooms and bedrooms on the sides with the most daylight. The metro "
     "station, schools and a hospital are close by, so the daily routine stays short.",
-    "overview_highlights": "Two towers of 2 and 3 BHK homes\nLandscaped podium garden\n1.2 km from Meridian Metro Station\nSchools and a hospital nearby",
-    "amenities_blurb": "From the infinity pool to the co-working lounge, every amenity is planned for daily use rather than for show.",
+    "overview_highlights": "Two towers, 2 and 3 BHK homes\nLandscaped podium garden\n1.2 km from Meridian Metro Station\nSchools and a hospital nearby",
+    "amenities_blurb": "From the infinity pool to the co-working lounge, every amenity is planned for daily use.",
     "plan_note": "Areas shown are carpet areas. Furniture in the plans is indicative only.",
     "about_headline": "About Kestrel Urbanscapes",
 }
@@ -103,3 +103,33 @@ def _stub_renderer(state, llm):
 
 
 STUB_RENDERER = _stub_renderer  # for graph tests of real_agents() that must not need WeasyPrint
+
+
+_FILLER_WORDS = (
+    "the towers stand around a landscaped podium garden and the plans put living rooms and bedrooms on the sides with "
+    "the most daylight while the metro station schools and a hospital are close by so homes here suit families who want "
+    "green space and calm streets near the city"
+).split()
+
+
+def _filler_words(chars: int, start: int = 0) -> str:
+    """Exactly `chars` characters of ordinary words, with no space at either end."""
+    words = _FILLER_WORDS[start % len(_FILLER_WORDS):] + _FILLER_WORDS * (chars // 20 + 1)
+    text = " ".join(words)[:chars]
+    return text[:-1] + "s" if text.endswith(" ") else text
+
+
+def filler_text(chars: int, line_chars: int | None = None, label: str = "") -> str:
+    """Filler of exactly `chars` characters, newlines included: running text, or with line_chars, lines of that length
+    (the last may be shorter), each starting with `label` if given."""
+    if line_chars is None:
+        return _filler_words(chars)
+    lines, left = [], chars
+    while left > 0:
+        take = min(line_chars, left)
+        if left - take == 1:  # no room for a line after the newline
+            take = left
+        head = label if take > len(label) + 1 else ""
+        lines.append(head + _filler_words(take - len(head), start=len(lines) * 3))
+        left -= take + 1
+    return "\n".join(lines)

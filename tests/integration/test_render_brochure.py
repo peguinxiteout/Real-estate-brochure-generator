@@ -10,6 +10,7 @@ import pytest
 from PIL import Image
 from pypdf import PdfReader
 
+from brochure.agents.copywriter import owned_slots
 from brochure.contracts.manifest import ImageManifest
 from brochure.doctor import find_ghostscript
 from brochure.layout import load_layout_rules
@@ -222,10 +223,12 @@ def laid_out(sample, images):
     return template, anchors, text_heights(anchors, spec, template.slots)
 
 
-def test_no_text_slot_of_the_sample_is_under_60_percent_full(laid_out):
+def test_no_copywriter_slot_of_the_sample_is_under_60_percent_full(laid_out):
+    # Verbatim slots are not checked: their heights fit their full budgets (test_full_budget_fit.py), not the sample.
     template, _, heights = laid_out
-    assert heights
-    fill = {sid: h / template.slots.get(sid).height_mm for sid, h in heights.items()}
+    owned = {s.id for s in owned_slots(template.slots)}
+    assert owned <= set(heights)
+    fill = {sid: heights[sid] / template.slots.get(sid).height_mm for sid in owned}
     assert {sid: round(f, 2) for sid, f in fill.items() if f < 0.6} == {}
 
 

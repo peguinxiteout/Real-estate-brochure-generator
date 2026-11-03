@@ -60,9 +60,9 @@ body {
 .prefix { font-weight: 600; color: var(--primary); }
 
 /* Per-slot adjustments */
-#slot-cover_title { color: #ffffff; }
+#slot-cover_title { color: #ffffff; display: flex; flex-direction: column; justify-content: flex-end; }
 #slot-cover_tagline { color: var(--accent); font-weight: 400; }
 #slot-cover_rera_line { color: #e6e9ef; }
-#slot-overview_highlights ul, #slot-amenities_list ul { columns: 2; column-gap: 8mm; }
+#slot-overview_highlights ul, #slot-amenities_list ul, #slot-location_landmarks ul { columns: 2; column-gap: 8mm; }
 #slot-static-qr-label { text-align: center; }
 #slot-disclaimer p { border-top: 0.5pt solid var(--accent); padding-top: 3mm; }  /* between the marks, so it is measured */
