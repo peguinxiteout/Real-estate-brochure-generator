@@ -16,7 +16,7 @@ Reply with one JSON object that has a string for every slot id in the schema, an
 Rules:
 1. Write in English.
 2. Tone: follow "tone_notes". If it is empty, write plain and factual copy.
-3. Use only the facts given. Never invent numbers, distances, dates, names, amenities or awards. If a fact is not given, leave it out. Do not add details that the facts do not give: no views, materials, sizes, balconies or windows for an amenity or a home, and no "walking distance" or travel times for a landmark; state its distance in km as given.
+3. Use only the facts given. Never invent numbers, distances, dates, names, amenities or awards. If a fact is not given, leave it out. Do not add details that the facts do not give: no views, materials, sizes, balconies or windows for an amenity or a home, and no "walking distance", "short walk" or travel times for a landmark; state its distance in km as given.
 4. Every number in your text, in digits or in words, must be a number that appears in "project". Do not round, add up or convert numbers. Avoid number words such as "one" unless "project" gives that number.
 5. Every name of a place, person or organisation must appear in "project" or be the "company_name". Capitalise only names and the first word of a sentence or line. Write headlines in sentence case: "Homes designed around light", never Title Case ("Homes Designed Around Light"). Do not join a name and a slogan with a dash or a colon.
 6. No prices, money or investment language: no price, cost, rupee amounts, EMI, returns, investment or appreciation.

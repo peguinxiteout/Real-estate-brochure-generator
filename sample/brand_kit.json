@@ -5,7 +5,7 @@
     {"name": "primary", "hex": "#1F3A5F", "cmyk": [100, 80, 30, 25]},
     {"name": "accent", "hex": "#C8A24A", "cmyk": [20, 30, 85, 5]}
   ],
-  "fonts": {"heading": "Playfair Display", "body": "Inter"},
+  "fonts": {"heading": "Inter", "body": "Open Sans"},
   "about_text": "Kestrel Urbanscapes is a Pune-based developer of thoughtfully planned residential communities. For over fifteen years the company has delivered homes that put light, air and green space first, and it stays involved long after handover through a dedicated community care team.",
   "contact": {
     "phone": "+91 20 5555 0100",

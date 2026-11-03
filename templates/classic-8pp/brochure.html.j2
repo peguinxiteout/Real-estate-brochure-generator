@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+{% autoescape false %}
+<style>
+{{ page_css }}
+{% for face in font_faces %}
+@font-face { font-family: "{{ face.family }}"; src: url("{{ face.uri }}") format("truetype"); font-weight: {{ face.weight }}; font-style: {{ face.style }}; }
+{% endfor %}
+:root { --primary: {{ colours.primary }}; --accent: {{ colours.accent }}; --heading-font: "{{ fonts.heading }}"; --body-font: "{{ fonts.body }}"; }
+.sheet { width: {{ trim.w }}; height: {{ trim.h }}; }
+{{ crop_marks_css }}
+{{ stylesheet }}
+</style>
+{% endautoescape %}
+</head>
+<body>
+{% for page in pages %}
+<section class="sheet" id="page-{{ page.number }}">
+{# Decoration belongs to the template (positions.json): a colour band on the cover behind the title, a thin band on the pages that do not open with a bleeding image. #}
+{% for deco in page.decorations %}
+<div class="deco {{ deco.id }}" style="{{ deco.style }}"></div>
+{% endfor %}
+{% for slot in page.slots %}
+{% if slot.kind == "image" %}
+<div class="slot image" id="slot-{{ slot.id }}" style="{{ slot.style }}"><img src="{{ slot.src }}" alt="" style="object-fit: cover; object-position: {{ slot.object_position }};">{% if slot.caption %}<span class="caption" style="{{ slot.caption_style }}">{{ slot.caption }}</span>{% endif %}</div>
+{% elif slot.kind == "placeholder" %}
+<div class="slot image placeholder" id="slot-{{ slot.id }}" style="{{ slot.style }}"><span>Image needed</span></div>
+{% elif slot.kind == "logo" %}
+<div class="slot logo" id="slot-{{ slot.id }}" style="{{ slot.style }}">{% if slot.src %}<img src="{{ slot.src }}" alt="{{ slot.company }}">{% else %}<span class="logo-text">{{ slot.company }}</span>{% endif %}</div>
+{% elif slot.kind == "qr" %}
+<div class="slot qr" id="slot-{{ slot.id }}" style="{{ slot.style }}">{{ slot.svg | safe }}</div>
+{% else %}
+<div class="slot text role-{{ slot.role }}" id="slot-{{ slot.id }}" style="{{ slot.style }}"><div class="mark" id="start-{{ slot.id }}"></div>
+{%- if slot.role == "list" %}<ul>{% for item in slot["items"] %}<li>{% if item.label %}<strong>{{ item.label }}</strong> {% endif %}{{ item.text }}</li>{% endfor %}</ul>
+{%- else %}<p>{% if slot.prefix %}<span class="prefix">{{ slot.prefix }}</span>{% endif %}{% for line in slot.lines %}{{ line }}{% if not loop.last %}<br>{% endif %}{% endfor %}</p>
+{%- endif %}<div class="mark" id="end-{{ slot.id }}"></div></div>
+{% endif %}
+{% endfor %}
+{{ crop_marks | safe }}
+</section>
+{% endfor %}
+</body>
+</html>

@@ -30,7 +30,7 @@
       "type": "text",
       "page": 1,
       "width_mm": 150,
-      "height_mm": 30,
+      "height_mm": 24,
       "bleed_edges": [],
       "char_budget": 40,
       "comment": ""
@@ -40,9 +40,9 @@
       "type": "text",
       "page": 1,
       "width_mm": 150,
-      "height_mm": 20,
+      "height_mm": 7,
       "bleed_edges": [],
-      "char_budget": 90,
+      "char_budget": 70,
       "comment": ""
     },
     {
@@ -50,7 +50,7 @@
       "type": "text",
       "page": 1,
       "width_mm": 150,
-      "height_mm": 8,
+      "height_mm": 5,
       "bleed_edges": [],
       "char_budget": 60,
       "comment": "RERA number printed as text on the cover."
@@ -60,7 +60,7 @@
       "type": "image",
       "page": 2,
       "width_mm": 210,
-      "height_mm": 120,
+      "height_mm": 123,
       "bleed_edges": [
         "top",
         "left",
@@ -73,9 +73,9 @@
       "type": "text",
       "page": 2,
       "width_mm": 180,
-      "height_mm": 20,
+      "height_mm": 14,
       "bleed_edges": [],
-      "char_budget": 60,
+      "char_budget": 50,
       "comment": ""
     },
     {
@@ -83,9 +83,9 @@
       "type": "text",
       "page": 2,
       "width_mm": 180,
-      "height_mm": 70,
+      "height_mm": 19,
       "bleed_edges": [],
-      "char_budget": 600,
+      "char_budget": 310,
       "comment": ""
     },
     {
@@ -93,9 +93,9 @@
       "type": "text",
       "page": 2,
       "width_mm": 180,
-      "height_mm": 40,
+      "height_mm": 17,
       "bleed_edges": [],
-      "char_budget": 240,
+      "char_budget": 120,
       "comment": "Four short highlight lines separated by newlines."
     },
     {
@@ -121,7 +121,7 @@
       "type": "text",
       "page": 3,
       "width_mm": 180,
-      "height_mm": 14,
+      "height_mm": 12,
       "bleed_edges": [],
       "char_budget": 120,
       "comment": ""
@@ -141,7 +141,7 @@
       "type": "image",
       "page": 4,
       "width_mm": 180,
-      "height_mm": 90,
+      "height_mm": 97,
       "bleed_edges": [],
       "comment": ""
     },
@@ -168,7 +168,7 @@
       "type": "text",
       "page": 4,
       "width_mm": 180,
-      "height_mm": 50,
+      "height_mm": 61,
       "bleed_edges": [],
       "char_budget": 300,
       "comment": "One amenity per line."
@@ -178,9 +178,9 @@
       "type": "text",
       "page": 4,
       "width_mm": 180,
-      "height_mm": 30,
+      "height_mm": 7,
       "bleed_edges": [],
-      "char_budget": 250,
+      "char_budget": 100,
       "comment": ""
     },
     {
@@ -206,7 +206,7 @@
       "type": "text",
       "page": 5,
       "width_mm": 180,
-      "height_mm": 50,
+      "height_mm": 114,
       "bleed_edges": [],
       "char_budget": 400,
       "comment": "One configuration per line: label, carpet area. No prices."
@@ -216,9 +216,9 @@
       "type": "text",
       "page": 5,
       "width_mm": 180,
-      "height_mm": 20,
+      "height_mm": 5,
       "bleed_edges": [],
-      "char_budget": 160,
+      "char_budget": 140,
       "comment": ""
     },
     {
@@ -226,7 +226,7 @@
       "type": "image",
       "page": 6,
       "width_mm": 210,
-      "height_mm": 80,
+      "height_mm": 81,
       "bleed_edges": [
         "top",
         "left",
@@ -239,7 +239,7 @@
       "type": "image",
       "page": 6,
       "width_mm": 88,
-      "height_mm": 120,
+      "height_mm": 126,
       "bleed_edges": [],
       "comment": ""
     },
@@ -248,7 +248,7 @@
       "type": "text",
       "page": 6,
       "width_mm": 88,
-      "height_mm": 120,
+      "height_mm": 115,
       "bleed_edges": [],
       "char_budget": 700,
       "comment": "One 'category: detail' per line."
@@ -257,8 +257,8 @@
       "id": "about_img",
       "type": "image",
       "page": 7,
-      "width_mm": 85,
-      "height_mm": 60,
+      "width_mm": 88,
+      "height_mm": 120,
       "bleed_edges": [],
       "comment": ""
     },
@@ -267,9 +267,9 @@
       "type": "text",
       "page": 7,
       "width_mm": 180,
-      "height_mm": 20,
+      "height_mm": 14,
       "bleed_edges": [],
-      "char_budget": 60,
+      "char_budget": 50,
       "comment": ""
     },
     {
@@ -277,7 +277,7 @@
       "type": "text",
       "page": 7,
       "width_mm": 180,
-      "height_mm": 60,
+      "height_mm": 27,
       "bleed_edges": [],
       "char_budget": 450,
       "comment": "Drawn from BrandKit.about_text."
@@ -296,7 +296,7 @@
       "type": "text",
       "page": 8,
       "width_mm": 120,
-      "height_mm": 8,
+      "height_mm": 11,
       "bleed_edges": [],
       "char_budget": 60,
       "comment": ""
@@ -315,7 +315,7 @@
       "type": "text",
       "page": 8,
       "width_mm": 120,
-      "height_mm": 30,
+      "height_mm": 32,
       "bleed_edges": [],
       "char_budget": 200,
       "comment": "Phone, email, website, address from BrandKit.contact."
@@ -325,7 +325,7 @@
       "type": "text",
       "page": 8,
       "width_mm": 180,
-      "height_mm": 40,
+      "height_mm": 18,
       "bleed_edges": [],
       "char_budget": 500,
       "comment": "From BrandKit.disclaimer."

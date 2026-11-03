@@ -35,3 +35,7 @@ def test_every_directly_imported_package_is_declared():
 
 def test_httpx_is_pinned_like_the_other_pinned_dependencies():
     assert re.fullmatch(r"httpx==\d+\.\d+\.\d+", declared()["httpx"])
+
+
+def test_weasyprint_is_pinned_to_the_version_the_bleed_box_finisher_was_checked_on():
+    assert declared()["weasyprint"] == "weasyprint==70.0"

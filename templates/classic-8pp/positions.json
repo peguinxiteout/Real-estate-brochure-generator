@@ -1,0 +1,63 @@
+{
+  "template_id": "classic-8pp",
+  "positions": [
+    {"slot": "hero", "x_mm": 0, "y_mm": 0, "caption": "top-right"},
+    {"slot": "cover_logo", "x_mm": 15, "y_mm": 15},
+    {"slot": "cover_title", "x_mm": 15, "y_mm": 246, "role": "title"},
+    {"slot": "cover_tagline", "x_mm": 15, "y_mm": 272, "role": "subheading"},
+    {"slot": "cover_rera_line", "x_mm": 15, "y_mm": 281, "role": "small-print"},
+
+    {"slot": "overview_img", "x_mm": 0, "y_mm": 0},
+    {"slot": "overview_headline", "x_mm": 15, "y_mm": 138, "role": "heading"},
+    {"slot": "overview_intro", "x_mm": 15, "y_mm": 162, "role": "body"},
+    {"slot": "overview_highlights", "x_mm": 15, "y_mm": 192, "role": "list"},
+
+    {"slot": "location_map", "x_mm": 15, "y_mm": 30},
+    {"slot": "location_img", "x_mm": 15, "y_mm": 152},
+    {"slot": "location_address", "x_mm": 15, "y_mm": 224, "role": "subheading"},
+    {"slot": "location_landmarks", "x_mm": 15, "y_mm": 237, "role": "list"},
+
+    {"slot": "amenity_img_a", "x_mm": 15, "y_mm": 35},
+    {"slot": "amenity_img_b", "x_mm": 15, "y_mm": 138},
+    {"slot": "amenity_img_c", "x_mm": 107, "y_mm": 138},
+    {"slot": "amenities_blurb", "x_mm": 15, "y_mm": 204, "role": "body"},
+    {"slot": "amenities_list", "x_mm": 15, "y_mm": 216, "role": "list"},
+
+    {"slot": "plan_img_a", "x_mm": 15, "y_mm": 35},
+    {"slot": "plan_img_b", "x_mm": 107, "y_mm": 35},
+    {"slot": "plan_note", "x_mm": 15, "y_mm": 129, "role": "small-print"},
+    {"slot": "config_table", "x_mm": 15, "y_mm": 140, "role": "list"},
+
+    {"slot": "spec_banner", "x_mm": 0, "y_mm": 0},
+    {"slot": "spec_img", "x_mm": 15, "y_mm": 115},
+    {"slot": "specs_list", "x_mm": 107, "y_mm": 115, "role": "list"},
+
+    {"slot": "about_headline", "x_mm": 15, "y_mm": 15, "role": "heading"},
+    {"slot": "about_text", "x_mm": 15, "y_mm": 37, "role": "body"},
+    {"slot": "about_img", "x_mm": 15, "y_mm": 66},
+
+    {"slot": "back_logo", "x_mm": 15, "y_mm": 25},
+    {"slot": "contact_block", "x_mm": 15, "y_mm": 55, "role": "body"},
+    {"slot": "rera_qr", "x_mm": 170, "y_mm": 55},
+    {"slot": "rera_number", "x_mm": 15, "y_mm": 92, "role": "body"},
+    {"slot": "disclaimer", "x_mm": 15, "y_mm": 269, "role": "small-print"}
+  ],
+  "overlays": [
+    {"slot": "cover_logo", "over": "hero"},
+    {"slot": "cover_title", "over": "hero"},
+    {"slot": "cover_tagline", "over": "hero"},
+    {"slot": "cover_rera_line", "over": "hero"}
+  ],
+  "decorations": [
+    {"id": "cover-band", "pages": [1], "x_mm": -3, "y_mm": 235, "width_mm": 216, "height_mm": 65},
+    {"id": "top-band", "pages": [3, 4, 5, 7, 8], "x_mm": -3, "y_mm": -3, "width_mm": 216, "height_mm": 7}
+  ],
+  "static_text": [
+    {"id": "title-location", "page": 3, "x_mm": 15, "y_mm": 15, "width_mm": 180, "height_mm": 14, "role": "heading", "text": "Location"},
+    {"id": "title-amenities", "page": 4, "x_mm": 15, "y_mm": 15, "width_mm": 180, "height_mm": 14, "role": "heading", "text": "Amenities"},
+    {"id": "title-plans", "page": 5, "x_mm": 15, "y_mm": 15, "width_mm": 180, "height_mm": 14, "role": "heading", "text": "Floor plans"},
+    {"id": "title-specifications", "page": 6, "x_mm": 15, "y_mm": 93, "width_mm": 180, "height_mm": 14, "role": "heading", "text": "Specifications"},
+    {"id": "qr-label", "page": 8, "x_mm": 165, "y_mm": 82, "width_mm": 35, "height_mm": 8, "role": "small-print", "text": "Scan for RERA registration details"}
+  ],
+  "free_gap_above": ["disclaimer"]
+}

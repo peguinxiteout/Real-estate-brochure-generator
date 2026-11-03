@@ -12,7 +12,7 @@ from brochure.pipeline.brief import brief_step
 from brochure.pipeline.agents import Agents, RenderResult
 from brochure.layout import LOGO_SLOTS
 from brochure.slots import SlotTemplate, load_slots
-from brochure.verbatim import verbatim_copy
+from brochure.verbatim import over_budget_issues, verbatim_copy
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TEMPLATE_ID = "classic-8pp"
@@ -42,15 +42,19 @@ def load_sample_data(root: Path = REPO_ROOT) -> SampleData:
 
 
 class ScriptedQA:
-    """QA stub. issues_per_round[n] is what the critic reports on its (n+1)th pass; later passes report nothing."""
+    """QA stub. issues_per_round[n] is what the critic reports on its (n+1)th pass; later passes report nothing.
+
+    The renderer's own issues (check "render.*", put in qa_issues by the renderer step) are passed through first, so
+    they route like any QA issue."""
 
     def __init__(self, issues_per_round: list[list[QAIssue]] | None = None):
         self.issues_per_round = issues_per_round or []
 
     def __call__(self, state: PipelineState, llm) -> list[QAIssue]:
+        rendered = [i for i in state.qa_issues if i.check.startswith("render.")]
         if state.qa_round < len(self.issues_per_round):
-            return list(self.issues_per_round[state.qa_round])
-        return []
+            return [*rendered, *self.issues_per_round[state.qa_round]]
+        return rendered
 
 
 def stub_agents(data: SampleData | None = None, qa=None) -> Agents:
@@ -85,7 +89,8 @@ def layout_spec(
     state: PipelineState, template: SlotTemplate, image_for_slot: dict[str, str], qa_warnings: list[QAIssue] = ()
 ) -> BrochureSpec:
     """The spec: the given image in each image slot, the copy in each text slot, the brand kit's logo in both logo
-    slots and the RERA URL in the QR slot. A non-logo image slot with no image is left out of its page."""
+    slots and the RERA URL in the QR slot. A non-logo image slot with no image is left out of its page. Verbatim text
+    over its budget is added to the warnings; it is never shortened."""
     fills: dict[int, dict[str, SlotFill]] = {n: {} for n in range(1, 9)}
     for slot in template.slots:
         if slot.type == "image" and slot.id not in LOGO_SLOTS:
@@ -100,4 +105,6 @@ def layout_spec(
         elif slot.type == "qr":
             fills[slot.page][slot.id] = SlotFill(qr_data=SAMPLE_RERA_URL)
     pages = [PageSpec(layout_id=f"{state.template_id}-p{n}", slots=fills[n]) for n in sorted(fills)]
-    return BrochureSpec(template_id=state.template_id, pages=pages, qa_warnings=list(qa_warnings))
+    texts = {slot_id: fill.text for page in fills.values() for slot_id, fill in page.items() if fill.text is not None}
+    warnings = [*qa_warnings, *over_budget_issues(texts, template)]
+    return BrochureSpec(template_id=state.template_id, pages=pages, qa_warnings=warnings)

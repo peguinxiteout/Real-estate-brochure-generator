@@ -8,7 +8,7 @@ from brochure.layout import LOGO_SLOTS, assign_images, load_layout_rules
 from brochure.llm import FakeLLM
 from brochure.pipeline import ScriptedQA, load_sample_data, real_agents, stub_agents
 from brochure.verbatim import verbatim_copy
-from tests.support import GOOD_COPY, Run, qa_issue, sample_state
+from tests.support import GOOD_COPY, STUB_RENDERER, Run, qa_issue, sample_state
 from tests.unit.test_pipeline_real_agents import NOTHING_FOUND
 
 ROOT = Path(__file__).parents[2]
@@ -76,7 +76,7 @@ def test_the_stub_layout_still_places_every_image_in_its_intended_slot_with_no_w
 
 def full_run(qa=None):
     llm = FakeLLM({"brief.extract": NOTHING_FOUND, "copy.write": GOOD_COPY})
-    run = Run(real_agents(qa=qa), llm=llm)
+    run = Run(real_agents(qa=qa, renderer=STUB_RENDERER), llm=llm)
     run.start(sample_state(briefed=False))
     return run, llm
 

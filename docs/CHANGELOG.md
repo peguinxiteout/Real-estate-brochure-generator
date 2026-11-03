@@ -2,6 +2,154 @@
 
 Newest entry first.
 
+## 2026-11-03: overflow never stops the render; verbatim text over budget is reported
+
+- Text that runs off its page no longer raises. WeasyPrint keeps 8 pages but drops the end of the text and the slot's
+  end mark, so `text_heights()` gives `math.inf` and `render.text_overflow` is reported with severity `error`, saying
+  part of the text is not printed. A missing start mark is still a `RuntimeError`: that is a fault in the template.
+- `render.text_overflow` is routed by who owns the text: Copywriter slots to `copywriter`, verbatim slots to `none`, so
+  verbatim overflow no longer spends QA rounds and goes straight to `spec.qa_warnings`.
+- New check `verbatim.over_budget`: `layout_spec()` adds a warning (`route_to` `none`) for each verbatim slot longer than
+  its `char_budget`. The text is never shortened.
+- No contract or `slots.json` change.
+
+## 2026-11-03: classic-8pp text slots fit their full budgets
+
+**Shared contract: `templates/classic-8pp/slots.json` changed. Please review.** Rule: every text slot's height fits its
+full `char_budget`, enforced by `tests/integration/test_full_budget_fit.py`. Only these 16 values changed.
+
+Copywriter slots keep their heights; the budget drops to the largest multiple of 10 that fits. `max_words` follows.
+
+| Slot | Page | Height (mm) | `char_budget` | `max_words` |
+|---|---|---|---|---|
+| `cover_tagline` | 1 | 7 | 90 -> 70 | 12 -> 10 |
+| `overview_headline` | 2 | 14 | 60 -> 50 | 8 -> 7 |
+| `overview_intro` | 2 | 19 | 600 -> 310 | 85 -> 44 |
+| `overview_highlights` | 2 | 17 | 240 -> 120 | 34 -> 17 |
+| `amenities_blurb` | 4 | 7 | 250 -> 100 | 35 -> 14 |
+| `plan_note` | 5 | 5 | 160 -> 140 | 22 -> 20 |
+| `about_headline` | 7 | 14 | 60 -> 50 | 8 -> 7 |
+
+Verbatim slots keep their budgets; the height rises until full-budget text fits.
+
+| Slot | Page | `char_budget` | Height (mm) |
+|---|---|---|---|
+| `cover_title` | 1 | 40 | 14 -> 24 |
+| `location_address` | 3 | 120 | 7 -> 12 |
+| `amenities_list` | 4 | 300 | 33 -> 61 |
+| `config_table` | 5 | 400 | 17 -> 114 |
+| `specs_list` | 6 | 700 | 68 -> 115 |
+| `about_text` | 7 | 450 | 19 -> 27 |
+| `rera_number` | 8 | 60 | 8 -> 11 |
+| `contact_block` | 8 | 200 | 30 -> 32 |
+| `disclaimer` | 8 | 500 | 13 -> 18 |
+
+`cover_rera_line` (5 mm) and `location_landmarks` (50 mm) already fit and did not change: `location_landmarks` fits
+because it is now set in two columns (CSS).
+
+- `positions.json` re-flowed; the disclaimer stays at the foot of page 8 (269 to 287 mm). Page 5 now runs title, plans,
+  note, configurations, so a short list leaves no gap above another block. The cover band starts at 235 mm.
+- A one-line `cover_title` sits at the foot of its slot, on the tagline.
+- `sample/stub_copy.json` shortened to fit: `overview_highlights` and `amenities_blurb`.
+- The integration test that no text slot of the sample is under 60% full now covers Copywriter slots only: a verbatim
+  slot's height now follows its budget, not the sample.
+- `sample/pages/` regenerated.
+
+## 2026-11-03: classic-8pp design pass
+
+**Shared contract: `templates/classic-8pp/slots.json` changed. Please review.** No slot added or removed, no char budget
+or bleed edge changed. Text slots under 60% full on the sample get the measured text height + about 20%, rounded up:
+
+| Slot | Page | Old (w x h mm) | New (w x h mm) |
+|---|---|---|---|
+| `cover_title` | 1 | 150 x 30 | 150 x 14 |
+| `cover_tagline` | 1 | 150 x 20 | 150 x 7 |
+| `cover_rera_line` | 1 | 150 x 8 | 150 x 5 |
+| `overview_headline` | 2 | 180 x 20 | 180 x 14 |
+| `overview_intro` | 2 | 180 x 70 | 180 x 19 |
+| `overview_highlights` | 2 | 180 x 40 | 180 x 17 |
+| `location_address` | 3 | 180 x 14 | 180 x 7 |
+| `amenities_list` | 4 | 180 x 50 | 180 x 33 |
+| `amenities_blurb` | 4 | 180 x 30 | 180 x 7 |
+| `config_table` | 5 | 180 x 50 | 180 x 17 |
+| `plan_note` | 5 | 180 x 20 | 180 x 5 |
+| `specs_list` | 6 | 88 x 120 | 88 x 68 |
+| `about_headline` | 7 | 180 x 20 | 180 x 14 |
+| `about_text` | 7 | 180 x 60 | 180 x 19 |
+| `disclaimer` | 8 | 180 x 40 | 180 x 13 |
+
+Image slots take the freed space, as far as the sample's images stay at 300 DPI or above (so their `min_px` grow):
+
+| Slot | Page | Old (w x h mm) | New (w x h mm) |
+|---|---|---|---|
+| `overview_img` | 2 | 210 x 120 | 210 x 123 |
+| `amenity_img_a` | 4 | 180 x 90 | 180 x 97 |
+| `spec_banner` | 6 | 210 x 80 | 210 x 81 |
+| `spec_img` | 6 | 88 x 120 | 88 x 126 |
+| `about_img` | 7 | 85 x 60 | 88 x 120 |
+
+**Effect to review:** the char budgets are unchanged, so text near its budget no longer fits most of these text slots
+and becomes `render.text_overflow`. For example `overview_intro` holds about 310 characters in 19 mm against a budget of
+600.
+
+- Section titles on pages 3 to 6 and the QR label on page 8 are static template text (`static_text` in `positions.json`),
+  not slots, with their own rules. The configuration list uses the normal list style.
+- Caption rule: a caption box lies inside its image and outside every slot listed over the image and every decoration.
+  The cover bands moved from the CSS to `decorations` in `positions.json` so the rule can see them. The hero's caption is
+  top-right, above the cover band, which now starts at 240 mm instead of 210 mm.
+- `positions.json` re-flowed (page 3 now runs title, map, photo, address, landmarks). New rule `gap_problems()`: at most
+  `max_block_gap_mm` (15 mm, new in `print_config.py`) between consecutive blocks, except above the disclaimer.
+- `sample/stub_copy.json` now passes the Copywriter's checks, enforced by a unit test: no "short walk", and
+  `about_headline` is "About Kestrel Urbanscapes", with no company history. "short walk" joins the banned phrases and
+  the prompt.
+- `text_heights()` is split out of the overflow check, for measuring fill. `sample/pages/` regenerated.
+
+## 2026-11-03: classic-8pp review fixes
+
+- `pyproject.toml` pins `weasyprint==70.0`: the BleedBox finisher relies on WeasyPrint's PDF internals.
+- Render issues reach the pipeline: `RenderResult` gains `issues` (empty by default, so the stub renderer is
+  unchanged); `RealRenderer` uses the new `render_with_issues()` (`render_brochure()` still returns
+  `(pdf_path, page_image_paths)`); the graph's renderer node puts the issues in `qa_issues`, and `ScriptedQA` returns
+  the `render.*` issues with its scripted ones. A `render.text_overflow` loops to the copywriter within the 3-round
+  limit; one left after the 3rd round lands in `spec.qa_warnings`. `render_issues.json` is still written. No contract
+  change.
+- Page PNGs are cropped to the TrimBox (Ghostscript `-dUseTrimBox`): 827 x 1169 px at 100 DPI, no slug or crop marks.
+  `sample/pages/` regenerated (0.32 MB). The integration test of the hero at the bleed edge now renders page 1's
+  MediaBox itself.
+
+## 2026-11-02: classic-8pp template and renderer
+
+The first real brochure from the pipeline: the `classic-8pp` HTML/CSS template and a renderer that turns a
+BrochureSpec, the brand kit and the image tags into an 8-page print PDF and one PNG per page. No contract change,
+`slots.json` unchanged, no new dependency.
+
+- Fonts: `assets/fonts/Inter/` (18pt Regular, SemiBold, Bold) and `assets/fonts/OpenSans/` (Regular, Italic, SemiBold,
+  Bold), static TTFs with each family's `OFL.txt`, 1.57 MB. `src/brochure/fonts.py` lists the faces. The sample brand
+  kit's fonts are now Inter (heading) and Open Sans (body). `brochure doctor`'s fonts check now looks for each file and
+  licence, names what is missing, and its hint names the families and folders; in WSL all four checks pass.
+- `templates/classic-8pp/positions.json`: x, y (mm, top-left of the trim-side box) and a text role for every slot;
+  sizes stay in `slots.json`. `position_problems()` checks one position per slot, roles, bleed edges exactly on the trim
+  and other edges strictly inside it, text and QR inside the safe area, and no overlaps except the listed overlays (the
+  cover text and logo on the hero). `print_config.py` gains `safe_margin_mm` (10, provisional) and
+  `text_overflow_tolerance_mm` (0.5).
+- `templates/classic-8pp/brochure.html.j2` + `brochure.css`, `src/brochure/render/html.py`: absolutely positioned slot
+  boxes in mm, bundled `@font-face` only, brand colours as CSS variables, focal-point `object-position`, an "Artist's
+  impression" caption on renders, an "Image needed" frame for unfilled image slots, lists, line breaks, logo or company
+  name, a vector QR (`src/brochure/render/qr.py`: error correction M, 4-module quiet zone, 25 mm).
+- `src/brochure/render/pdf.py`: `render_brochure()` (WeasyPrint, imported lazily) writes `brochure.pdf` and
+  `page-<n>.png` (Ghostscript, 100 DPI). The blank proof and the brochure share `page_css`, `crop_marks_svg` and
+  `set_bleed_boxes`. Text overflow is measured with WeasyPrint's public `Page.anchors` and written to
+  `render_issues.json` as `render.text_overflow` warnings for the copywriter; it is not in the graph state yet.
+- Pipeline: `real_agents()` renders for real with `RealRenderer` into `out/<thread id>/` (`out_root` configurable);
+  `stub_agents()` keeps the stub. Graph code is unchanged. The graph tests of `real_agents()` now pass the stub renderer
+  (`tests.support.STUB_RENDERER`) because CI has no Pango; their assertions are unchanged.
+- `tools/render_sample.py`: the graph on the sample with stub brief, vision and copy, the real layout and the real
+  renderer; prints the PDF, the PNGs and the warnings. A copy of the 8 PNGs (100 DPI, 0.33 MB) is in `sample/pages/`.
+- `sample/logo.svg`: its text is set in Inter instead of a generic serif, which made WeasyPrint embed DejaVu Serif.
+- Tests: unit tests for fonts, positions rules, HTML generation, focal-point maths, the overflow check, QR
+  determinism, the renderer step and the tool; integration tests in WSL render the sample and check pages, boxes,
+  embedded fonts, extracted text, PNGs and the hero at the bleed edge.
+
 ## 2026-11-02: Print geometry spike
 
 Settles how the page boxes, bleed and crop marks are produced and checked, before the real template is built. A blank proof PDF only: no BrochureSpec content, templates or images. The pipeline, graph, agents, contracts and the renderer stub are unchanged. The slug and crop mark numbers are provisional until the printer confirms its spec.

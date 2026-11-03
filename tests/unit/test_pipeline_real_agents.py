@@ -1,4 +1,5 @@
-"""The graph with the real Brief and Copywriter agents (a FakeLLM behind them) and the stubs for the other steps."""
+"""The graph with the real Brief and Copywriter agents (a FakeLLM behind them) and the stubs for the other steps. The
+renderer is the stub here (no Pango in CI); test_pipeline_renderer.py covers the real one."""
 import logging
 import socket
 
@@ -7,7 +8,7 @@ import pytest
 from brochure.llm import FakeLLM, LLMRateLimited
 from brochure.pipeline import ScriptedQA, load_sample_data, real_agents
 from brochure.verbatim import VERBATIM_SLOTS
-from tests.support import GOOD_COPY, Run, qa_issue, sample_state
+from tests.support import GOOD_COPY, STUB_RENDERER, Run, qa_issue, sample_state
 from tests.unit.test_agent_copywriter import Script
 
 LOCATION = "Meridian Park Road, Pune"
@@ -30,7 +31,7 @@ def no_network(monkeypatch):
 
 def sparse_run(canned=CANNED):
     llm = FakeLLM({"brief.extract": canned, "copy.write": GOOD_COPY})  # the copywriter is real too: it needs a reply
-    return Run(real_agents(), llm=llm), llm
+    return Run(real_agents(renderer=STUB_RENDERER), llm=llm), llm
 
 
 def test_what_the_prompt_states_is_filled_and_only_the_unmentioned_field_is_asked():
@@ -72,7 +73,7 @@ def test_when_the_model_fails_the_run_asks_for_everything_the_form_lacks_as_befo
         def complete(self, task, payload, images=None):
             raise LLMRateLimited("rate limit still hit")
 
-    run = Run(real_agents(), llm=Failing())
+    run = Run(real_agents(renderer=STUB_RENDERER), llm=Failing())
     run.start(sample_state(briefed=False, brief_file="brief_sparse.json"))
     assert run.paused_at == ("ask_user",)
     assert run.interrupt_value["missing_fields"] == ["rera_number", "location", "possession"]
@@ -80,7 +81,7 @@ def test_when_the_model_fails_the_run_asks_for_everything_the_form_lacks_as_befo
     assert run.paused_at == ("human_review",)
 
 
-def test_every_step_but_brief_and_copywriter_is_still_a_stub_so_the_run_ends_after_approval():
+def test_with_the_stub_renderer_every_step_but_brief_copywriter_and_layout_is_a_stub_so_the_run_ends_after_approval():
     run, _ = sparse_run()
     run.start(sample_state(briefed=False, brief_file="brief_sparse.json"))
     run.resume({"location": LOCATION})
@@ -115,7 +116,7 @@ def full_run(copy_replies=(GOOD_COPY,), qa=None):
     The Script plays one answer per call in order: the brief step calls first, then the copywriter once per pass.
     """
     llm = Script(NOTHING_FOUND, *copy_replies)
-    return Run(real_agents(qa=qa), llm=llm), llm
+    return Run(real_agents(qa=qa, renderer=STUB_RENDERER), llm=llm), llm
 
 
 def test_the_graph_with_the_real_brief_and_copywriter_reaches_review_with_every_owned_slot_filled():
@@ -147,7 +148,7 @@ def test_legal_and_contact_text_comes_from_code_not_the_model():
 
 def test_when_the_model_cannot_be_used_the_run_still_reaches_review_with_placeholders_for_the_written_slots(caplog):
     llm = Script(NOTHING_FOUND, LLMRateLimited("rate limit"))
-    run = Run(real_agents(), llm=llm)
+    run = Run(real_agents(renderer=STUB_RENDERER), llm=llm)
     run.start(sample_state(briefed=False))
     assert run.paused_at == ("human_review",)
     fills = {sid: fill for page in run.state.spec.pages for sid, fill in page.slots.items()}

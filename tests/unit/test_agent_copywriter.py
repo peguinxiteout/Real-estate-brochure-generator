@@ -16,8 +16,8 @@ from tests.support import GOOD_COPY as GOOD, qa_issue, sample_state
 ROOT = Path(__file__).parents[2]
 TEMPLATE = load_sample_data().template
 OWNED = {
-    "cover_tagline": 90, "overview_headline": 60, "overview_intro": 600, "overview_highlights": 240,
-    "amenities_blurb": 250, "plan_note": 160, "about_headline": 60,
+    "cover_tagline": 70, "overview_headline": 50, "overview_intro": 310, "overview_highlights": 120,
+    "amenities_blurb": 100, "plan_note": 140, "about_headline": 50,
 }
 
 def inputs(**changes) -> CopyInputs:
@@ -147,7 +147,7 @@ def play(*answers, **changes):
     return copywriter_agent(inputs(**changes), llm), llm
 
 
-TOO_LONG = "A" * 91  # cover_tagline has 90 characters
+TOO_LONG = "A" * 71  # cover_tagline has 70 characters
 
 
 def test_an_over_budget_slot_is_asked_for_again_and_the_second_text_is_used():
@@ -178,7 +178,7 @@ def test_the_second_call_sends_only_the_failing_slots_with_the_reason_for_each_a
     assert set(second["problems"]) == {"plan_note"}  # wrong in content: written again with the reason
     assert "empty" in second["problems"]["plan_note"]
     assert set(second["shorten"]) == {"cover_tagline"}  # only too long: edited, with its previous text
-    assert "91" in second["shorten"]["cover_tagline"]["problem"] and "90" in second["shorten"]["cover_tagline"]["problem"]
+    assert "71" in second["shorten"]["cover_tagline"]["problem"] and "70" in second["shorten"]["cover_tagline"]["problem"]
     assert {k: v for k, v in second.items() if k not in ("slots", "problems", "shorten")} == {k: v for k, v in first.items() if k != "slots"}
 
 
@@ -209,7 +209,7 @@ def test_a_slot_that_fails_twice_is_left_out_and_exactly_one_warning_says_which_
     assert len(llm.calls) == 2  # asked once more, not again
     assert set(copy) == set(OWNED) - {"cover_tagline"}
     (message,) = warnings(caplog)
-    assert "cover_tagline" in message and "91 characters, the limit is 90" in message
+    assert "cover_tagline" in message and "71 characters, the limit is 70" in message
 
 
 def test_several_slots_that_fail_twice_share_one_warning(caplog):
@@ -224,7 +224,7 @@ def test_several_slots_that_fail_twice_share_one_warning(caplog):
 def test_the_reason_in_the_warning_is_the_one_from_the_second_attempt(caplog):
     play({**GOOD, "cover_tagline": TOO_LONG}, {**GOOD, "cover_tagline": "Heights in Zorbaville"})
     (message,) = warnings(caplog)
-    assert "Zorbaville" in message and "91 characters" not in message
+    assert "Zorbaville" in message and "71 characters" not in message
 
 
 def test_no_warning_when_every_slot_passes(caplog):
@@ -252,7 +252,7 @@ def test_a_client_error_on_the_second_call_keeps_the_slots_that_passed_and_one_w
     copy, llm = play({**GOOD, "cover_tagline": TOO_LONG}, LLMRateLimited("rate limit"))
     assert copy == {k: v for k, v in GOOD.items() if k != "cover_tagline"}
     (message,) = warnings(caplog)
-    assert "cover_tagline" in message and "91 characters" in message and "rate limit" in message
+    assert "cover_tagline" in message and "71 characters" in message and "rate limit" in message
     assert "plan_note" not in message  # it passed
 
 
@@ -406,7 +406,7 @@ def test_two_bad_replies_to_the_second_attempt_keep_what_passed_and_leave_the_re
     assert len(llm.calls) == 3
     assert copy == {k: v for k, v in GOOD.items() if k != "cover_tagline"}
     (message,) = warnings(caplog)
-    assert "cover_tagline" in message and "91 characters" in message and "again" in message
+    assert "cover_tagline" in message and "71 characters" in message and "again" in message
 
 
 def test_only_a_bad_reply_is_asked_again_a_rate_limit_or_http_error_is_not():
@@ -421,8 +421,8 @@ def test_the_prompt_explains_previous_error():
 
 # --- word limits in the payload -------------------------------------------------------------------------------------------
 
-MAX_WORDS = {"cover_tagline": 12, "overview_headline": 8, "overview_intro": 85, "overview_highlights": 34,
-             "amenities_blurb": 35, "plan_note": 22, "about_headline": 8}
+MAX_WORDS = {"cover_tagline": 10, "overview_headline": 7, "overview_intro": 44, "overview_highlights": 17,
+             "amenities_blurb": 14, "plan_note": 20, "about_headline": 7}
 
 
 def test_each_slot_is_sent_with_max_words_derived_from_its_char_budget():
@@ -454,7 +454,7 @@ def test_a_slot_that_fails_only_on_length_is_sent_back_with_its_previous_text_to
     _, llm = play({**GOOD, "cover_tagline": TOO_LONG}, GOOD)
     second = llm.calls[1][1]
     assert second["shorten"] == {"cover_tagline": {"previous_text": TOO_LONG, "problem": second["shorten"]["cover_tagline"]["problem"]}}
-    assert "91 characters" in second["shorten"]["cover_tagline"]["problem"]
+    assert "71 characters" in second["shorten"]["cover_tagline"]["problem"]
     assert "problems" not in second
     assert [s["id"] for s in second["slots"]] == ["cover_tagline"]
 
@@ -499,7 +499,7 @@ def test_a_slot_still_over_budget_after_the_retry_is_trimmed_to_whole_sentences_
     copy, llm = play({**GOOD, "overview_intro": long_intro(8)}, {**GOOD, "overview_intro": long_intro(12)})
     trimmed = copy["overview_intro"]
     assert len(llm.calls) == 2
-    assert trimmed == expected_trim(12) and len(trimmed) <= 600 < len(trimmed + " " + SENTENCE)
+    assert trimmed == expected_trim(12) and len(trimmed) <= 310 < len(trimmed + " " + SENTENCE)
     assert trimmed.endswith(".")
     assert warnings(caplog) == []
     assert any("trimmed slot overview_intro" in r.getMessage() and r.levelno == logging.INFO for r in caplog.records)
